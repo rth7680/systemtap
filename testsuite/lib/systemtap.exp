@@ -326,14 +326,23 @@ proc setup_server { args } {
 	return 0
     }
 
+    # Create a temporary log file
+    if {[catch {exec mktemp -t stap-list-servers-XXXXXX} tmpfile]} {
+        verbose -log "Failed to create temporary log file: $tmpfile"
+        exit 1
+    }
+
     # Make sure that stap can find the server.
     exec sleep 1
     set use_server --use-server
-    set res [catch { exec stap --list-servers=online,trusted,compatible >& stap-list-servers.out } looksee]
+    set res [catch { exec stap --list-servers=online,trusted,compatible >& $tmpfile } looksee]
     verbose -log "stap --list-servers returned: res==$res"
-    verbose -log $looksee[exec cat stap-list-servers.out]
-    set listRes [catch { exec grep "^ host" stap-list-servers.out } looksee]
+    verbose -log $looksee[exec cat $tmpfile]
+    set listRes [catch { exec grep "^ host" $tmpfile } looksee]
     verbose -log "grep for servers returned: res==$res\n$looksee"
+
+    # Delete the temporary log file
+    catch {exec rm $tmpfile}
 
     # Try to discover the port the server is listening on from the server log.
     # We're matching a line of the form:
