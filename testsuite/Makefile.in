@@ -493,11 +493,11 @@ do-installcheck-parallel: installcheck-serial-tests $(REGULAR_TEST_TARGETS)
 
 installcheck-serial-tests:
 	-mkdir -p outputs/__serialtests
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'"
+	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 installcheck/%.exp:
 	-mkdir -p outputs/$*
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'"
+	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
