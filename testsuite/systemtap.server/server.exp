@@ -1,19 +1,26 @@
 set test "Server Tests:"
 
-# We will be looking for specific log messages, so specify our own log file.
-set server_log $logfile
+# Save the current directory.
+set origdir [pwd]
+
+# Create a tempory directory.
+if {[catch {exec mktemp -d -t staptestXXXXXX} tmpdir]} {
+    verbose -log "Failed to create temporary directory: $tmpdir"
+    exit 1
+}
+
+# Switch to the temporary directory
+cd $tmpdir
+
+# Create a new server log and make sure it's world writable.
+set logfile "${tmpdir}/server.log"
+catch {exec touch $logfile}
+catch {exec chmod 666 $logfile}
 
 # Don't attempt these tests if the client/server are not available
 if {! [setup_server]} then {
     untested "Server Tests"
     return
-}
-
-proc cleanup {} {
-    global tmpdir
-    catch {exec rm -f foo}
-    catch {exec rm -fr $tmpdir}
-    shutdown_server
 }
 
 # Whether the server can communicate with the client is tested in client.exp.
@@ -26,7 +33,7 @@ if {! [uprobes_p]} then {
     untested "$test $subtest tests"
 } else {
     # First compile a test application.
-    catch {exec gcc -g -o foo $srcdir/systemtap.base/jennie.c} err
+    catch {exec gcc -g -o foo $origdir/systemtap.base/jennie.c} err
     if {$err == "" && [file exists foo]} {
 	pass "$test $subtest compile foo"
     } else {
@@ -41,14 +48,14 @@ if {! [uprobes_p]} then {
 
     # Now use the server to compile the uprobes.stp script
     set failed 1
-    set tmpdir ""
-    set cmd [concat stap -p4 $srcdir/$subdir/uprobes.stp $use_server -k -c $foo]
+    set tstdir ""
+    set cmd [concat stap -p4 $origdir/$subdir/uprobes.stp $use_server -k -c $foo]
     send_log "executing: $cmd\n"
     eval spawn $cmd
     expect {
 	-timeout 150
 	-re {.*Keeping temporary directory \"(.*)\"\r\n} {
-	    set tmpdir "$expect_out(1,string)"
+	    set tstdir "$expect_out(1,string)"
 	    set failed 0
 	}
 	-re {^.*\r\n} { exp_continue }
@@ -64,15 +71,16 @@ if {! [uprobes_p]} then {
     }
 
     # Make sure that the uprobes.ko module was returned.
-    if {"$tmpdir" == "" || [inode_uprobes_p]} {
+    if {"$tstdir" == "" || [inode_uprobes_p]} {
 	untested "$test $subtest uprobes returned"
     } else {
-	if {[file exists $tmpdir/server/stap000000/uprobes/uprobes.ko]} {
+	if {[file exists $tstdir/server/stap000000/uprobes/uprobes.ko]} {
 	    pass "$test $subtest uprobes returned"
 	} else {
 	    fail "$test $subtest uprobes returned"
 	}
     }
+    catch {exec rm -rf $tstdir}
 
     if {! [installtest_p]} {
 	untested "$test $subtest -p5";
@@ -89,7 +97,7 @@ if {! [uprobes_p]} then {
 
     # Now use the server to compile and run the uprobes.stp script
     set failed 1
-    set cmd {stap $srcdir/$subdir/uprobes.stp $use_server -c "$foo 1 2 3 4"}
+    set cmd {stap $origdir/$subdir/uprobes.stp $use_server -c "$foo 1 2 3 4"}
     send_log "executing: $cmd\n"
     eval spawn $cmd
     set ok 0
@@ -135,7 +143,7 @@ if {$dontTest == 1} {
 if {$dontTest == 1} {
     untested "$test $subtest"
 } else {
-    set rc [catch {exec grep "Avahi client failure: Daemon connection failed" $server_log} result]
+    set rc [catch {exec grep "Avahi client failure: Daemon connection failed" $logfile} result]
     if {$rc != 0} {
 	fail "$test $subtest"
     } else {
@@ -147,7 +155,7 @@ set subtest "server re-established avahi-daemon connection"
 if {$dontTest == 1} {
     untested "$test $subtest"
 } else {
-    set rc [catch {exec grep -c {Adding Avahi service .Systemtap Compile Server.*} $server_log} result]
+    set rc [catch {exec grep -c {Adding Avahi service .Systemtap Compile Server.*} $logfile} result]
     # Make sure the target line was found more than once.
     if {$rc != 0 || $result < 2} {
 	fail "$test $subtest"
@@ -161,9 +169,11 @@ if {$dontTest == 1 || ! [installtest_p]} then {
     untested "$test $subtest"
 } else {
     # Contact the server directly, so that we know we're getting the one we want.
-    set rc [stap_run_batch $srcdir/systemtap.server/hello.stp --use-server=$server_spec]
+    set rc [stap_run_batch $origdir/systemtap.server/hello.stp --use-server=$server_spec]
     if {$rc == 0} { pass "$test $subtest" } else { fail "$test $subtest" }
 }
 
 #-------------------------------------------------------
-cleanup
+shutdown_server
+cd $origdir
+catch {exec rm -rf $tmpdir}

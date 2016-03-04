@@ -1,17 +1,10 @@
 # Server Concurrency Tests
 
-# Save the old log file, create a new one
-# and make sure it's world writable. We need to
-# use a clean server log since we are crawling the
-# output to find the port and to verify concurrency.
-# We restore the old log at the end, appending the log
-# output from this test.
-set logfile "[exec pwd]/server.log"
-set oldlogfile "[exec pwd]/old_server.log"
-if {[file exists $logfile]} then {
-    exec mv $logfile $oldlogfile
+# Create a new server log file and make sure it's world writable.
+if {[catch {exec mktemp -t staptestXXXXXX-server.log} logfile]} {
+    verbose -log "Failed to create server log file: $logfile"
+    exit 1
 }
-exec touch $logfile
 exec chmod 666 $logfile
 
 # Start our own server and make sure we can work with it.
@@ -151,11 +144,5 @@ if { $failed == 0 } {
 }
 
 # Cleanup and shutdown the server we started.
-# Restore the old log file, appending the new
-# one to the end.
-if {[file exists $logfile]} then {
-    exec cat $logfile >> $oldlogfile
-    exec rm -f $logfile
-    exec mv $oldlogfile $logfile
-}
 shutdown_server
+catch {exec rm -f $logfile}

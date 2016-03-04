@@ -206,7 +206,7 @@ proc print_systemtap_version {} {
 
 
 proc setup_systemtap_environment {} {
-    global srcdir env server_pid logfile systemtap_dyninst_p
+    global srcdir env server_pid systemtap_dyninst_p
     global systemtap_nss_p systemtap_java_p
     global have_hw_breakpoint_p systemtap_readline_p
     global kill_needs_doubledash
@@ -237,15 +237,6 @@ proc setup_systemtap_environment {} {
     puts $chan "--rlimit-cpu=850"
     puts $chan "-E 'probe timer.s(900){error(\"probe timeout after 15 minutes\")}'"
     close $chan
-
-    # Erase the old server log file.
-    set logfile "[pwd]/server.log"
-    if {[file exists $logfile]} then {
-	exec rm -f $logfile;
-    }
-    # Create a new one and make sure it's world writable.
-    exec touch $logfile
-    exec chmod 666 $logfile
 
     # Zap any previous uprobes, if any
     catch { exec /sbin/rmmod uprobes }
@@ -533,6 +524,14 @@ proc environment_sanity_test {} {
         exit 1
     }
 
+    # Create a tempory directory.
+    if {[catch {exec mktemp -d -t staptestXXXXXX-sanity-test} tmpdir]} {
+        verbose -log "Failed to create temporary directory: $tmpdir"
+        exit 1
+    }
+    set curdir [pwd]
+    cd ${tmpdir}
+
     # Make more likely that all development packages for the supported ABIs (-m64 -m32/-m31)
     # are installed by building a quick hello.c and hello.cxx program with both.
     set source "hello.c"
@@ -566,7 +565,9 @@ proc environment_sanity_test {} {
         puts "Please install libstdc++-devel package for [arch_compile_flag_name $i]\n"
       }
     }
-    catch { eval [list exec rm -f] [glob "hello.c*" "hello-*"] }
+
+    cd ${curdir}
+    catch {exec rm -rf $tmpdir}
 }
 
 if {! [setup_systemtap_environment]} then {
