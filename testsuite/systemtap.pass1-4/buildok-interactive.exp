@@ -4,9 +4,11 @@ set test_suffix "(interactive)"
 if {! [readline_p]} { untested "${self} ${test_suffix}"; return }
 
 # Since we need a clean cache directory, we'll use a temporary
-# systemtap directory and cache (add user name so make check and
-# sudo make installcheck don't clobber each others)
-set local_systemtap_dir [exec pwd]/.cache_test-[exec whoami]
+# systemtap directory and cache.
+if {[catch {exec mktemp -d -t systemtap-dir-buildok-interactive-XXXXXX} local_systemtap_dir]} {
+    verbose -log "Failed to create temporary directory: $local_systemtap_dir"
+    exit 1
+}
 exec /bin/rm -rf $local_systemtap_dir
 if [info exists env(SYSTEMTAP_DIR)] {
     set old_systemtap_dir $env(SYSTEMTAP_DIR)
@@ -251,7 +253,7 @@ foreach file [lsort [glob -nocomplain $srcdir/$self/*.stp]] {
 
 # Cleanup.
 stapi_exit
-exec /bin/rm -rf $local_systemtap_dir
+catch {exec /bin/rm -rf $local_systemtap_dir}
 if [info exists old_systemtap_dir] {
     set env(SYSTEMTAP_DIR) $old_systemtap_dir
 } else {

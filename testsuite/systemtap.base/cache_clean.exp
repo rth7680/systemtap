@@ -1,11 +1,11 @@
 # cache_clean.exp
 
 # Since we need a clean cache directory, we'll use a temporary
-# systemtap directory and cache (add user name so make check and
-# sudo make installcheck don't clobber each others)
-set local_systemtap_dir [exec pwd]/.cache_test-[exec whoami]
-exec /bin/rm -rf $local_systemtap_dir
-exec /bin/mkdir $local_systemtap_dir
+# systemtap directory and cache.
+if {[catch {exec mktemp -d -t systemtap-dir-cache_clean-XXXXXX} local_systemtap_dir]} {
+    verbose -log "Failed to create temporary directory: $local_systemtap_dir"
+    exit 1
+}
 exec /bin/mkdir $local_systemtap_dir/cache
 
 if [info exists env(SYSTEMTAP_DIR)] {

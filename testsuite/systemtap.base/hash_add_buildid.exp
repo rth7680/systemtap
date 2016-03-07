@@ -9,9 +9,10 @@ if {![uprobes_p]} { untested $test; return }
 set exe hash_add_buildid
 set at_least_one_run 0
 set passed 0
-set local_systemtap_dir [exec pwd]/.cache_test-[exec whoami]
-exec /bin/rm -rf $local_systemtap_dir
-exec /bin/mkdir $local_systemtap_dir
+if {[catch {exec mktemp -d -t systemtap-dir-$test-XXXXXX} local_systemtap_dir]} {
+    verbose -log "Failed to create temporary directory: $local_systemtap_dir"
+    exit 1
+}
 if [info exists env(SYSTEMTAP_DIR)] {
     set old_systemtap_dir $env(SYSTEMTAP_DIR)
 }
@@ -102,7 +103,7 @@ if {$passed == 0} {
 }
 
 # Cleanup.
-exec /bin/rm -rf $local_systemtap_dir
+catch {exec /bin/rm -rf $local_systemtap_dir}
 if [info exists old_systemtap_dir] {
     set env(SYSTEMTAP_DIR) $old_systemtap_dir
 } else {

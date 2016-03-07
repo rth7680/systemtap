@@ -168,7 +168,10 @@ set ::result_string "$no_error_result"
 
 # avoid propagating issue similar to PR17301
 set origdir $env(SYSTEMTAP_DIR)
-catch {exec mktemp -d} tmpdir
+if {[catch {exec mktemp -d -t systemtap-dir-client_args-XXXXXX} tmpdir]} {
+    verbose -log "Failed to create temporary directory: $tmpdir"
+    exit 1
+}
 set env(SYSTEMTAP_DIR) $tmpdir
 
 foreach options $valid_options {
@@ -194,5 +197,10 @@ foreach options $valid_options {
     }
 }
 
-set env(SYSTEMTAP_DIR) $origdir
-catch {exec rm -rf $tmpdir}
+# Cleanup.
+catch {exec /bin/rm -rf $tmpdir}
+if [info exists origdir] {
+    set env(SYSTEMTAP_DIR) $origdir
+} else {
+    unset env(SYSTEMTAP_DIR)
+}
