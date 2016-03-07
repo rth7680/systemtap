@@ -219,10 +219,12 @@ proc setup_systemtap_environment {} {
     # otherwise, we will have problems with expect
     set env(TERM) dumb
 
-    # Use a local systemtap directory and cache.  Add user name so
-    # make check and sudo make check don't clobber each other.
-    set env(SYSTEMTAP_DIR) [pwd]/.systemtap-[exec whoami]
-    exec mkdir -p $env(SYSTEMTAP_DIR)
+    # Set a local systemtap directory and cache in case one wasn't provided
+    # already by the Makefile
+    if { ! [info exists env(SYSTEMTAP_DIR)] } {
+        set env(SYSTEMTAP_DIR) [pwd]/.systemtap-[exec whoami]
+        exec mkdir -p $env(SYSTEMTAP_DIR)
+    }
 
     # Start with fresh server certificates
     exec rm -fr $env(SYSTEMTAP_DIR)/ssl

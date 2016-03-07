@@ -292,7 +292,10 @@ distclean-DEJAGNU:
 	  rm -f $$tool.sum $$tool.log; \
 	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU check-local
+	$(eval TEMPDIR != mktemp -d -t systemtap-dir-XXXXXX)
+	$(eval SYSTEMTAP_DIR=$(TEMPDIR))
+	$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU check-local SYSTEMTAP_DIR=$(SYSTEMTAP_DIR)
+	rm -rf $(SYSTEMTAP_DIR)
 check: check-am
 all-am: Makefile all-local
 installdirs:
@@ -433,8 +436,11 @@ check-local:
 # but installcheck does not follow an implicit check-DEJAGNU, go figure
 installcheck: site.exp
 	-rmmod uprobes 2>/dev/null
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="$(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'"
+	$(eval TEMPDIR != mktemp -d -t systemtap-dir-XXXXXX)
+	$(eval SYSTEMTAP_DIR=$(TEMPDIR))
+	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="$(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" SYSTEMTAP_DIR=$(SYSTEMTAP_DIR)
 	if test -n "$(DEJAZILLA)"; then mail $(DEJAZILLA) < systemtap.sum; fi
+	rm -rf $(SYSTEMTAP_DIR)
 
 # In the parallel mode, the dg-extract-results.sh generates common .sum and .log
 # files for all the tests, plus separate logs per testcase are kept in the outputs
@@ -491,13 +497,21 @@ REGULAR_TEST_TARGETS := $(addprefix installcheck/,$(regular_tests))
 do-installcheck-parallel: installcheck-serial-tests $(REGULAR_TEST_TARGETS)
 	@:
 
-installcheck-serial-tests:
-	-mkdir -p outputs/__serialtests
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+installcheck-serial-tests: site.exp
+	-rmmod uprobes 2>/dev/null
+	$(eval TEMPDIR != mktemp -d -t systemtap-dir-XXXXXX)
+	$(eval SYSTEMTAP_DIR=$(TEMPDIR))
+	mkdir -p outputs/__serialtests
+	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes  SYSTEMTAP_DIR=$(SYSTEMTAP_DIR)
+	rm -rf $(SYSTEMTAP_DIR)
 
-installcheck/%.exp:
-	-mkdir -p outputs/$*
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+installcheck/%.exp: site.exp
+	-rmmod uprobes 2>/dev/null
+	$(eval TEMPDIR != mktemp -d -t systemtap-dir-XXXXXX)
+	$(eval SYSTEMTAP_DIR=$(TEMPDIR))
+	mkdir -p outputs/$*
+	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=outputs/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes SYSTEMTAP_DIR=$(SYSTEMTAP_DIR)
+	rm -rf $(SYSTEMTAP_DIR)
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
