@@ -219,12 +219,10 @@ proc setup_systemtap_environment {} {
     # otherwise, we will have problems with expect
     set env(TERM) dumb
 
-    # Set a local systemtap directory and cache in case one wasn't provided
-    # already by the Makefile
-    if { ! [info exists env(SYSTEMTAP_DIR)] } {
-        set env(SYSTEMTAP_DIR) [pwd]/.systemtap-[exec whoami]
-        exec mkdir -p $env(SYSTEMTAP_DIR)
-    }
+    # Use a local systemtap directory and cache.  Add user name so
+    # make check and sudo make check don't clobber each other.
+    set env(SYSTEMTAP_DIR) [pwd]/.systemtap-[exec whoami]
+    exec mkdir -p $env(SYSTEMTAP_DIR)
 
     # Start with fresh server certificates
     exec rm -fr $env(SYSTEMTAP_DIR)/ssl
@@ -845,4 +843,20 @@ proc strverscmp { vers1 vers2 } {
       set vers1 $nextvers1
       set vers2 $nextvers2
    }
+}
+
+proc setup_artifacts_dir {} {
+    global srcdir
+    set scriptdir [info script]
+    regsub {\.exp$} $scriptdir {} scriptdir
+    regsub {^\.\/} $scriptdir {} scriptdir
+    # [fullpath $srcdir] is independent on make invocation path
+    set basepath [fullpath $srcdir]
+    regsub {\/\.$} $basepath {} basepath
+    set artifactdir "$basepath/artifacts/$scriptdir"
+    if {[catch {exec mkdir -p $artifactdir} err_msg]} {
+        verbose -log "Failed to create artifacts directory: $err_msg"
+        exit 1
+    }
+    return $artifactdir
 }

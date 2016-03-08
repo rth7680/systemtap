@@ -166,13 +166,10 @@ set valid_options [list \
 
 set ::result_string "$no_error_result"
 
-# avoid propagating issue similar to PR17301
-set origdir $env(SYSTEMTAP_DIR)
-if {[catch {exec mktemp -d -t systemtap-dir-client_args-XXXXXX} tmpdir]} {
-    verbose -log "Failed to create temporary directory: $tmpdir"
-    exit 1
-}
-set env(SYSTEMTAP_DIR) $tmpdir
+# Use clean SYSTEMTAP_DIR to avoid propagating issues like PR17301.
+set orig_systemtap_dir $env(SYSTEMTAP_DIR)
+set artifacts_dir [setup_artifacts_dir]
+set env(SYSTEMTAP_DIR) $artifacts_dir
 
 foreach options $valid_options {
     # Replace the `uname -r` substring, which varies from run to run, with a generic
@@ -197,10 +194,5 @@ foreach options $valid_options {
     }
 }
 
-# Cleanup.
-catch {exec /bin/rm -rf $tmpdir}
-if [info exists origdir] {
-    set env(SYSTEMTAP_DIR) $origdir
-} else {
-    unset env(SYSTEMTAP_DIR)
-}
+# Reset SYSTEMTAP_DIR.
+set env(SYSTEMTAP_DIR) $orig_systemtap_dir

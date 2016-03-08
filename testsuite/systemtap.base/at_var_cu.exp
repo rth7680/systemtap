@@ -1,6 +1,7 @@
 set test "at_var_cu"
 set testpath "$srcdir/$subdir"
-set exefile "[pwd]/$test"
+set artifacts_dir [setup_artifacts_dir]
+set exefile "$artifacts_dir/$test"
 set stap_path $env(SYSTEMTAP_PATH)/stap
 set staprun_path $env(SYSTEMTAP_PATH)/staprun
 
@@ -42,11 +43,11 @@ if { $res != "" } {
 
 foreach runtime [get_runtime_list] {
     if {$runtime != ""} {
-        stap_run3 "$test ($runtime)" $srcdir/$subdir/$test.stp -c ./$test \
+        stap_run3 "$test ($runtime)" $srcdir/$subdir/$test.stp -c $exefile \
             $exefile --runtime=$runtime
 
     } elseif {[uprobes_p]} {
-        stap_run3 $test $srcdir/$subdir/$test.stp -c ./$test $exefile
+        stap_run3 $test $srcdir/$subdir/$test.stp -c $exefile $exefile
 
     } else {
         untested "$test"

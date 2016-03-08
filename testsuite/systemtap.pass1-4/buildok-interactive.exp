@@ -3,17 +3,10 @@ set test_suffix "(interactive)"
 
 if {! [readline_p]} { untested "${self} ${test_suffix}"; return }
 
-# Since we need a clean cache directory, we'll use a temporary
-# systemtap directory and cache.
-if {[catch {exec mktemp -d -t systemtap-dir-buildok-interactive-XXXXXX} local_systemtap_dir]} {
-    verbose -log "Failed to create temporary directory: $local_systemtap_dir"
-    exit 1
-}
-exec /bin/rm -rf $local_systemtap_dir
-if [info exists env(SYSTEMTAP_DIR)] {
-    set old_systemtap_dir $env(SYSTEMTAP_DIR)
-}
-set env(SYSTEMTAP_DIR) $local_systemtap_dir
+# We need a clean cache directory
+set orig_systemtap_dir $env(SYSTEMTAP_DIR)
+set artifacts_dir [setup_artifacts_dir]
+set env(SYSTEMTAP_DIR) $artifacts_dir
 
 #exp_internal 1
 set rc [stapi_start "-vp4"]
@@ -253,9 +246,6 @@ foreach file [lsort [glob -nocomplain $srcdir/$self/*.stp]] {
 
 # Cleanup.
 stapi_exit
-catch {exec /bin/rm -rf $local_systemtap_dir}
-if [info exists old_systemtap_dir] {
-    set env(SYSTEMTAP_DIR) $old_systemtap_dir
-} else {
-    unset env(SYSTEMTAP_DIR)
-}
+
+# Reset SYSTEMTAP_DIR.
+set env(SYSTEMTAP_DIR) $orig_systemtap_dir
