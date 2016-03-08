@@ -1,5 +1,7 @@
 # Testcase for PR14107 missing kernel ASM CFI.
 set test "bad-code"
+set artifactsdir [setup_artifacts_dir]
+set executable "$artifactsdir/$test"
 set testpath "$srcdir/$subdir"
 
 set output_string {0x[\\da-f]+ : func+[^\\r\\n]+\r\n0x[\\da-f]+ : main+[^\\r\\n]+\r\n}
@@ -7,7 +9,7 @@ set output_string {0x[\\da-f]+ : func+[^\\r\\n]+\r\n0x[\\da-f]+ : main+[^\\r\\n]
 # Note don't optimize we are really interested in the non-inlined case
 set test_flags "additional_flags=-g"
 
-set res [target_compile $srcdir/$subdir/$test.c $test executable "$test_flags"]
+set res [target_compile $srcdir/$subdir/$test.c $executable executable "$test_flags"]
 if { $res != "" } {
   verbose "target_compile $test failed: $res" 2
   fail "$test.c compile"
@@ -20,9 +22,9 @@ if { $res != "" } {
     set main 0
     set func 0
     set libc 0
-    send_log "Running: stap ${testpath}/${test}.stp -w -d ./$test -c ./$test\n"
+    send_log "Running: stap ${testpath}/${test}.stp -w -d $executable -c $executable\n"
 
-    spawn stap ${testpath}/${test}.stp -w -d ./$test -c ./$test
+    spawn stap ${testpath}/${test}.stp -w -d $executable -c $executable
     expect {
       -timeout 60
       -re {^ 0x[a-f0-9]+ : func\+0x[^\r\n]+\r\n} {incr func; exp_continue}

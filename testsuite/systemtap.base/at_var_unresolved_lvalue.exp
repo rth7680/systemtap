@@ -1,4 +1,6 @@
 set test "at_var_unresolved_lvalue"
+set artifacts_dir [setup_artifacts_dir]
+set executable "$artifacts_dir/$test"
 set testpath "$srcdir/$subdir"
 
 # Check unresolved @var used as lvalue.
@@ -7,7 +9,7 @@ set testpath "$srcdir/$subdir"
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
 
-set res [target_compile ${testpath}/at_var.c $test executable \
+set res [target_compile ${testpath}/at_var.c $executable executable \
     "additional_flags=-O2 additional_flags=-g"]
 
 if { $res != "" } {
@@ -15,7 +17,7 @@ if { $res != "" } {
     fail "unable to compile ${test}.c"
 }
 
-spawn stap $srcdir/$subdir/$test.stp -c ./$test $test -g
+spawn stap $srcdir/$subdir/$test.stp -c $executable $test -g
 set ok 0
 
 expect {
