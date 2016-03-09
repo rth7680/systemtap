@@ -1,15 +1,13 @@
 # cache.exp
 
-# Since we need a clean cache directory, we'll use a temporary
-# systemtap directory and cache.
-if {[catch {exec mktemp -d -t systemtap-dir-cache-XXXXXX} local_systemtap_dir]} {
-    verbose -log "Failed to create temporary directory: $local_systemtap_dir"
-    exit 1
-}
+# Use the 'artifacts' dir.
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
 if [info exists env(SYSTEMTAP_DIR)] {
     set old_systemtap_dir $env(SYSTEMTAP_DIR)
 }
-set env(SYSTEMTAP_DIR) $local_systemtap_dir
+set env(SYSTEMTAP_DIR) $artifactsdir
 
 # Set up the scripts we'll use.
 set basic_script1 "\"probe begin { println(1) }\""
@@ -46,7 +44,7 @@ exec /bin/rm -f $new_runtime
 set env(SYSTEMTAP_DIR) /dev/null
 cache_compile DISABLED1 [F_UNCACHED_COMPILE] $basic_script1
 cache_compile DISABLED2 [F_UNCACHED_COMPILE] $basic_script1
-set env(SYSTEMTAP_DIR) $local_systemtap_dir
+set env(SYSTEMTAP_DIR) $artifactsdir
 eval [list exec /bin/rm -f] [glob "stap_*.ko"]
 
 # Disable the cache with '-m'
@@ -68,9 +66,11 @@ cache_compile VAR1 [F_UNCACHED_COMPILE] $var_script1
 cache_compile VAR2 [F_CACHED_COMPILE] $var_script1
 
 # Cleanup.
-exec /bin/rm -rf $local_systemtap_dir
 if [info exists old_systemtap_dir] {
     set env(SYSTEMTAP_DIR) $old_systemtap_dir
 } else {
     unset env(SYSTEMTAP_DIR)
 }
+
+# Exit the 'artifacts' dir.
+cd $curdir

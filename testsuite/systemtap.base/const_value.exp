@@ -1,3 +1,7 @@
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # DW_AT_const_value (blocks).
 set test "const_value"
 set ::result_string {i: 2
@@ -9,11 +13,12 @@ set test_flags "additional_flags=-g"
 set test_flags "$test_flags additional_flags=-O2"
 set test_flags "$test_flags [sdt_includes]"
 
-set res [target_compile $srcdir/$subdir/$test.c $test.exe executable "$test_flags"]
+set res [target_compile $curdir/$subdir/$test.c $test.exe executable "$test_flags"]
 if { $res != "" } {
   verbose "target_compile failed: $res" 2
   fail "$test.c compile"
   untested "$test"
+  cd $curdir
   return
 } else {
   pass "$test.c compile"
@@ -27,9 +32,9 @@ if {[installtest_p]} {
   if {![catch {exec readelf --debug-dump=info $test.exe | grep "$dw_at_c"}]} {
     foreach runtime [get_runtime_list] {
       if {$runtime != ""} {
-	stap_run2 $srcdir/$subdir/$test.stp -c ./$test.exe --runtime=$runtime
+	stap_run2 $curdir/$subdir/$test.stp -c ./$test.exe --runtime=$runtime
       } elseif {[uprobes_p]} {
-	stap_run2 $srcdir/$subdir/$test.stp -c ./$test.exe
+	stap_run2 $curdir/$subdir/$test.stp -c ./$test.exe
       } else {
 	untested "$test"
       }
@@ -40,7 +45,6 @@ if {[installtest_p]} {
 } else {
   untested "$test"
 }
-catch {exec rm -f $test.exe}
 
 
 # DW_AT_const_value (address).
@@ -52,11 +56,12 @@ set test_flags "additional_flags=-g"
 set test_flags "$test_flags additional_flags=-O2"
 set test_flags "$test_flags [sdt_includes]"
 
-set res [target_compile $srcdir/$subdir/$test.c $test.exe executable "$test_flags"]
+set res [target_compile $curdir/$subdir/$test.c $test.exe executable "$test_flags"]
 if { $res != "" } {
   verbose "target_compile failed: $res" 2
   fail "$test.c compile"
   untested "$test"
+  cd $curdir
   return
 } else {
   pass "$test.c compile"
@@ -71,9 +76,9 @@ if {[installtest_p]} {
     foreach runtime [get_runtime_list] {
       setup_kfail 10739 "*-*-*"
       if {$runtime != ""} {
-	stap_run2 $srcdir/$subdir/$test.stp -c ./$test.exe --runtime=$runtime
+	stap_run2 $curdir/$subdir/$test.stp -c ./$test.exe --runtime=$runtime
       } elseif {[uprobes_p]} {
-	stap_run2 $srcdir/$subdir/$test.stp -c ./$test.exe
+	stap_run2 $curdir/$subdir/$test.stp -c ./$test.exe
       } else {
 	untested "$test"
       }
@@ -84,4 +89,5 @@ if {[installtest_p]} {
 } else {
   untested "$test"
 }
-catch {exec rm -f $test.exe}
+
+cd $curdir

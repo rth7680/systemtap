@@ -1,12 +1,17 @@
 set test "flightrec2"
+
 if {![installtest_p]} { untested $test; return }
+
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
 
 # cleanup
 system "rm -f flightlog.out*"
 
 set pid 0
 # check -S option
-spawn stap -F -o flightlog.out -S 1,3 $srcdir/$subdir/$test.stp
+spawn stap -F -o flightlog.out -S 1,3 $curdir/$subdir/$test.stp
 expect {
   -timeout 240
   -re {([0-9]+)\r\n} {
@@ -19,6 +24,7 @@ expect {
 wait; catch {close}
 if {$pid == 0} {
   fail "$test (no pid)"
+  cd $curdir
   return -1
 }
 
@@ -66,3 +72,4 @@ exec kill -TERM $pid
 exec sleep 1
 system "rm -f flightlog.out*"
 
+cd $curdir

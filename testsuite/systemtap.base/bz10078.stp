@@ -1,4 +1,4 @@
 #! stap -p4
-probe process("./bz10078").function("mkpoint*").return {
+probe process(@1).function("mkpoint*").return {
 	printf("%s returns\n", ppfunc())
 }

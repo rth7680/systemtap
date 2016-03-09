@@ -1,3 +1,7 @@
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # Check that we can dereference a type declaration that is
 # defined in a separate CU from the function.
 set test "cu-decl"
@@ -8,7 +12,7 @@ set script {
     }
 }
 
-set sources "$srcdir/$subdir/$test-1.c $srcdir/$subdir/$test-2.c"
+set sources "$curdir/$subdir/$test-1.c $curdir/$subdir/$test-2.c"
 set flags "additional_flags=-g"
 for {set i 0} {$i < [all_compile_flags]} {incr i} {
   set extra_flag [all_compile_flag $i]
@@ -32,5 +36,6 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
 	untested "$test-$extra_name"
     }
   }
-  catch {exec rm $test}
 }
+
+cd $curdir
