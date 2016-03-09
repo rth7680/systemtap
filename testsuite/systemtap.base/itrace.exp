@@ -1,7 +1,12 @@
 # itrace test
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # Initialize variables
-set exepath "[pwd]/ls_[pid]"
+set exepath "$artifactsdir/ls_[pid]"
 
 # Why check for 1000 instructions executed?  We can't know the actual
 # number to look for, so we just look for a reasonable number that
@@ -143,6 +148,7 @@ proc stap_check_feature { test_name script feature } {
 # exec'ed (instead of our local copy).
 if {[catch {exec cp /bin/ls $exepath} res]} {
     fail "unable to copy /bin/ls: $res"
+    cd $curdir
     return
 }
 
@@ -237,4 +243,4 @@ if {![utrace_orig_p]} {
 }
 
 # Cleanup
-exec rm -f $exepath
+cd $curdir

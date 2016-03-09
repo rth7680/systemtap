@@ -18,6 +18,11 @@ if {! [installtest_p]} { untested "$test"; return }
 # To ensure we're testing the right thing, this test has been split
 # into two subtests, so we can hopefully depend on the order output.
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 set ::result_string {func end
 mark end
 func return end
@@ -29,7 +34,7 @@ func return end}
 set test_flags "additional_flags=-g"
 set test_flags "$test_flags [sdt_includes]"
 
-set res [target_compile $srcdir/$subdir/$test.c $test executable "$test_flags"]
+set res [target_compile $curdir/$subdir/$test.c $test executable "$test_flags"]
 if {$res != ""} {
   verbose -log "target_compile failed: $res" 2
   fail "$test.c compile"
@@ -42,9 +47,9 @@ if {$res != ""} {
 foreach runtime [get_runtime_list] {
     if {$runtime != ""} {
 	stap_run3 "${test}.stp ($runtime)" \
-	    $srcdir/$subdir/${test}.stp -c ./$test --runtime=$runtime 
+	    $curdir/$subdir/${test}.stp -c ./$test --runtime=$runtime 
     } elseif {[uretprobes_p]} {
-	stap_run3 ${test}.stp $srcdir/$subdir/${test}.stp -c ./$test
+	stap_run3 ${test}.stp $curdir/$subdir/${test}.stp -c ./$test
     } else {
 	untested ${test}.stp
     }
@@ -59,12 +64,15 @@ state end}
 foreach runtime [get_runtime_list] {
     if {$runtime != ""} {
 	stap_run3 "${test}2.stp ($runtime)" \
-	    $srcdir/$subdir/${test}2.stp -c ./$test --runtime=$runtime 
+	    $curdir/$subdir/${test}2.stp -c ./$test --runtime=$runtime 
     } elseif {[uprobes_p]} {
-	stap_run3 ${test}2.stp $srcdir/$subdir/${test}2.stp -c ./$test
+	stap_run3 ${test}2.stp $curdir/$subdir/${test}2.stp -c ./$test
     } else {
 	untested ${test}2.stp
     }
 }
 
 if { $verbose == 0 } { catch {exec rm -f $test} }
+
+# Switch back from the testcase specific working directory
+cd $curdir

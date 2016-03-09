@@ -1,7 +1,13 @@
 #!/usr/bin/expect
 
 set test "multisym"
-set testpath "$srcdir/$subdir"
+
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
+set testpath "$curdir/$subdir"
 set script "$testpath/multisym.stp"
 
 # Test that two functions with the same name in the symbol table are
@@ -41,6 +47,9 @@ set res [lindex $res 3]
 
 if {$res == 0 && $results == 4} {
 	pass "$test succeeded"
-    } else {
+} else {
 	fail "$test failed"
-    }
+}
+
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -2,6 +2,11 @@ set test "partial-class-type"
 
 # PR14434 dwflpp sometimes caches incomplete class_type
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 proc error_handler { res message } {
   global verbose test
   if { $res == 0 } {
@@ -14,15 +19,24 @@ proc error_handler { res message } {
   }
 }
 
-set srcpath "$srcdir/$subdir"
+set srcpath "$curdir/$subdir"
 set res [target_compile $srcpath/partial-class-type-heap.cxx "partial-class-type-heap.o" object "compiler=g++ additional_flags=-g additional_flags=-O2"]
-if { [error_handler [expr {$res==""}] "partial-class-type-heap.cxx"] } { return }
+if { [error_handler [expr {$res==""}] "partial-class-type-heap.cxx"] } {
+    cd $curdir
+    return
+}
 
 set res [target_compile $srcpath/partial-class-type-main.cxx "partial-class-type-main.o" object "compiler=g++ additional_flags=-g additional_flags=-O2"]
-if { [error_handler [expr {$res==""}] "partial-class-type-main.cxx"] } { return }
+if { [error_handler [expr {$res==""}] "partial-class-type-main.cxx"] } {
+    cd $curdir
+    return
+}
 
 set res [target_compile "partial-class-type-main.o partial-class-type-heap.o" "partial-class-type" executable "compiler=g++ additional_flags=-g additional_flags=-O2"]
-if { [error_handler [expr {$res==""}] "partial-class-type"] } { return }
+if { [error_handler [expr {$res==""}] "partial-class-type"] } {
+    cd $curdir
+    return
+}
 
 set script {"probe process(\"./partial-class-type\").function(\"main\") { printf(\"_size member offset: %d\\n\", &@cast(0, \"Heap\")->_size); }"}
 
@@ -31,3 +45,6 @@ set script {"probe process(\"./partial-class-type\").function(\"main\") { printf
 for {set i 0} {$i < 7} {incr i} {
   stap_compile $test-$i 1 $script -p2
 }
+
+# Switch back from the testcase specific working directory
+cd $curdir

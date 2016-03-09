@@ -2,6 +2,11 @@ set test "labels"
 if {![installtest_p]} {untested $test; return}
 if {![utrace_p]} { untested $test; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # Compile a C program to use as the user-space probing target
 set label_srcpath "[pwd]/labels.c"
 set label_exepath "[pwd]/labels.x"
@@ -51,6 +56,7 @@ if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "compiling labels.c $label_flags"
     catch {exec rm -f $label_srcpath $label_stppath}
+    cd $curdir
     return
 } else {
     pass "compiling labels.c $label_flags"
@@ -181,6 +187,7 @@ if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "compiling labels.c $label_flags"
     catch {exec rm -f $label_srcpath $label_stppath}
+    cd $curdir
     return
 } else {
     pass "compiling labels.c $label_flags"
@@ -228,4 +235,5 @@ catch { close }; catch { wait }
 
 if {$ok > 0} { pass "$test so .statement" } { fail "$test so .statement" }
 
-catch {exec rm -f $label_srcpath $label_stppath $label_exepath $label_shpath $label_sopath}
+# Switch back from the testcase specific working directory
+cd $curdir

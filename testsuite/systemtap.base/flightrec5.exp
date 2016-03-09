@@ -1,8 +1,10 @@
 set test "flightrec5"
 if {![installtest_p]} { untested $test; return }
 
-# Make sure we start with a clean slate.
-catch {exec rm -f $test.out*}
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
 
 # run stapio in background mode with number limit and bulk mode
 spawn stap -F -S 1,2 -b -o $test.out -we {probe begin {}}
@@ -20,6 +22,7 @@ expect {
 wait; catch {close}
 if {$pid == 0} {
   fail "$test (no pid)"
+  cd $curdir
   return -1
 }
 
@@ -33,11 +36,11 @@ eval set outfile {[glob -nocomplain $test.out_cpu*.0]}
 if {$outfile == ""} {
   fail "$test (no output file) $outfile"
   exec kill -TERM $pid
+  cd $curdir
   return -1
 } else {
   pass "$test (output file)"
 }
-eval exec rm $outfile
 
 # switch file to .2
 exec kill -USR2 $pid
@@ -55,7 +58,7 @@ if {$outfile == ""} {
   pass "$test (old output file is removed)"
 } else {
   fail "$test (failed to remove output file) $outfile"
-  eval exec rm $outfile
+  cd $curdir
   return -1
 }
 
@@ -63,9 +66,11 @@ if {$outfile == ""} {
 eval set outfile {[glob -nocomplain $test.out_cpu*.*]}
 if {$outfile == ""} {
   fail "$test (failed to switch output file)"
+  cd $curdir
   return -1
 } else {
   pass "$test (switch output file)"
 }
-eval exec rm $outfile
 
+# Switch back from the testcase specific working directory
+cd $curdir

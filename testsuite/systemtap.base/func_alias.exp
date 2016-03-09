@@ -2,6 +2,11 @@ set test "func_alias"
 
 if {![utrace_p]} { untested $test; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 proc run {subtest pp} {
   global test
   verbose -log "subtest $subtest"
@@ -21,16 +26,17 @@ proc run {subtest pp} {
 }
 
 proc run_one_test {flags bits} {
-    global test srcdir subdir
+    global test curdir subdir curdir
 
     verbose -log "testing $bits-bit $test"
-    set source "$srcdir/$subdir/$test.c"
+    set source "$curdir/$subdir/$test.c"
     set target "[pwd]/$test.x$bits"
     set flags "additional_flags=-g $flags"
     set res [target_compile $source $target executable $flags]
     if { $res != "" } {
       verbose -log "$target failed: $res"
       untested "$bits-bit $test"
+      cd $curdir
       return
     }
     run "$bits-bit $test direct" "process(\"$target\").function(\"$test\")"
@@ -41,3 +47,6 @@ proc run_one_test {flags bits} {
 for {set i 0} {$i < [arch_compile_flags]} {incr i} {
     run_one_test [arch_compile_flag $i] [arch_compile_flag_bits $i]
 }
+
+# Switch back from the testcase specific working directory
+cd $curdir

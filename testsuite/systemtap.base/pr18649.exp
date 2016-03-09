@@ -1,5 +1,10 @@
 set test "pr18649"
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 set test_srcpath "[pwd]/test.c"
 set test_exepath "[pwd]/test"
 set test_stppath "[pwd]/test.stp"
@@ -39,6 +44,7 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
         if { $res != "" } {
             fail "compiling test.c $test_flags"
             catch {exec rm -f $test_srcpath}
+            cd $curdir
             return
         } else {
             pass "compiling test.c $test_flags"
@@ -57,4 +63,5 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
     }
 }
 
-catch {exec rm -f $test_srcpath $test_exepath $test_stppath}
+# Switch back from the testcase specific working directory
+cd $curdir

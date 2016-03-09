@@ -5,8 +5,13 @@ if {! [installtest_p]} {
     return
 }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # building the test program
-set compile_result [target_compile $srcdir/$subdir/$test_name.c ./$test_name executable "additional_flags=-g [sdt_includes]"]
+set compile_result [target_compile $curdir/$subdir/$test_name.c ./$test_name executable "additional_flags=-g [sdt_includes]"]
 
 proc sleep_twenty_secs {} {
     wait_n_secs 20;
@@ -44,9 +49,9 @@ foreach runtime [get_runtime_list] {
             setup_kfail 17352 "*-*-*"
         }
         set cur_test_name "$test_name ($runtime)"
-        stap_run $cur_test_name sleep_twenty_secs $output_string --runtime=$runtime $srcdir/$subdir/${test_script} $pid2
+        stap_run $cur_test_name sleep_twenty_secs $output_string --runtime=$runtime $curdir/$subdir/${test_script} $pid2
     } elseif {[uprobes_p]} {
-        stap_run $test_name sleep_twenty_secs $output_string $srcdir/$subdir/${test_script} $pid2        
+        stap_run $test_name sleep_twenty_secs $output_string $curdir/$subdir/${test_script} $pid2        
     } else {
         untested $test_name
         continue
@@ -58,5 +63,5 @@ kill -INT $pid1 2
 kill -INT $pid2 2
 kill -INT $pid3 2
 
-# remove the executable
-exec rm -f ./$test_name
+# Switch back from the testcase specific working directory
+cd $curdir
