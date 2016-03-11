@@ -1,4 +1,14 @@
 set test "sdt_va_args"
+
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+if {[catch {eval exec ln -s $curdir/sys $artifactsdir}]} {
+    fail "test (symlink sys)"
+    exit 1
+}
+cd $artifactsdir
+
 set ::result_string {_
 1
 1 2
@@ -39,7 +49,7 @@ set test_flags "$test_flags additional_flags=-Werror"
 
 set saveidx 0
 
-set res [target_compile $srcdir/$subdir/$test.c $testprog executable "$test_flags $extra_flag"]
+set res [target_compile $curdir/$subdir/$test.c $testprog executable "$test_flags $extra_flag"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     # -std=gnu++0x and -std=c++0x are not universally accepted
@@ -58,10 +68,10 @@ if {[installtest_p]} {
     foreach runtime [get_runtime_list] {
 	if {$runtime != ""} {
 	    stap_run3 "$test $extra_mssg ($runtime)" \
-		--runtime=$runtime -w $srcdir/$subdir/sdt.stp \
+		--runtime=$runtime -w $curdir/$subdir/sdt.stp \
 		$testprog -c ./$testprog
 	} elseif {[uprobes_p]} {
-	    stap_run3 "$test $extra_mssg" -w $srcdir/$subdir/sdt.stp \
+	    stap_run3 "$test $extra_mssg" -w $curdir/$subdir/sdt.stp \
 		$testprog -c ./$testprog
 	} else {
 	    untested "$test $extra_mssg"
@@ -74,3 +84,5 @@ catch {exec rm -f $testprog}
 
 } ; # for {set i 0} {$i < [llength $extra_flags]}
 
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -1,5 +1,10 @@
 set test "tapset_functions_stress"
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # This test tries to pass invalid inputs to tapset functions and checks,
 # whether they crash the kernel or not. List of functions to test is generated
 # dynamically based on `stap --dump-functions -v` output.
@@ -84,6 +89,7 @@ proc list_values { argtype } {
 # Get list of functions to test.
 if {[catch {exec bash -c "stap --dump-functions -v $opts" 2>/dev/null} outputv]} {
     fail "$test (can't get output of stap --dump-functions)"
+    cd $curdir
     return
 } else {
     pass "$test (got output of stap --dump-functions)"
@@ -198,10 +204,6 @@ proc show_errors {} {
     verbose -log $output
 }
 
-# Setup
-file mkdir "$test"
-cd "$test"
-
 if { !$debugmode } {
     set testscript [open "testscript.stp" w]
 }
@@ -279,8 +281,7 @@ if { !$debugmode } {
     dmesg_check
 }
 
-# Cleanup
-cd ..
-file delete -force "$test"
+# Switch back from the testcase specific working directory
+cd $curdir
 
 

@@ -1,15 +1,18 @@
 # Server Concurrency Tests
 
-# Create a new server log file and make sure it's world writable.
-if {[catch {exec mktemp -t staptestXXXXXX-server.log} logfile]} {
-    verbose -log "Failed to create server log file: $logfile"
-    exit 1
-}
-exec chmod 666 $logfile
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
+set logfile "$artifactsdir/server.log"
+catch {exec touch $logfile}
+catch {exec chmod 666 $logfile}
 
 # Start our own server and make sure we can work with it.
 if {! [setup_server --max-threads 6]} {
     untested "Compile-server client tests against a server"
+    cd $curdir
     return;
 }
 
@@ -145,4 +148,6 @@ if { $failed == 0 } {
 
 # Cleanup and shutdown the server we started.
 shutdown_server
-catch {exec rm -f $logfile}
+
+# Switch back from the testcase specific working directory
+cd $curdir

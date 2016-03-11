@@ -6,11 +6,10 @@ if {! [installtest_p]} { untested "$test"; return }
 
 # Test V3 asm support
 
-proc cleanup_handler { verbose } {
-    if { $verbose == 0 } {
-	catch {exec rm -f sdt_asm.x}
-    }
-}
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
 
 # Compile a C program to use as the user-space probing target
 set stap_path $env(SYSTEMTAP_PATH)/stap
@@ -21,7 +20,7 @@ if {[istarget "x86_64-*-*"] || [istarget "i*86-*-*"]} {
     set asm_flags [sdt_includes]
     # avoid WARNING for @defined($no_such_var)
     set asm_flags "$asm_flags additional_flags=-g"
-    set res [target_compile $srcdir/$subdir/sdt_asm.S sdt_asm.x \
+    set res [target_compile $curdir/$subdir/sdt_asm.S sdt_asm.x \
 		 executable $asm_flags]
     if { $res != "" } {
 	verbose "target_compile failed: $res" 2
@@ -34,11 +33,11 @@ if {[istarget "x86_64-*-*"] || [istarget "i*86-*-*"]} {
 	set test_xtra ""
 	if {$runtime != ""} {
 	    set test_xtra " ($runtime)"
-	    verbose -log "spawn $stap_path --runtime=$runtime -c [pwd]/sdt_asm.x $srcdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x"
-	    spawn $stap_path --runtime=$runtime -c [pwd]/sdt_asm.x $srcdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x
+	    verbose -log "spawn $stap_path --runtime=$runtime -c [pwd]/sdt_asm.x $curdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x"
+	    spawn $stap_path --runtime=$runtime -c [pwd]/sdt_asm.x $curdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x
 	} elseif {[uprobes_p]} {
-	    verbose -log "spawn $stap_path -c [pwd]/sdt_asm.x $srcdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x"
-	    spawn $stap_path -c [pwd]/sdt_asm.x $srcdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x
+	    verbose -log "spawn $stap_path -c [pwd]/sdt_asm.x $curdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x"
+	    spawn $stap_path -c [pwd]/sdt_asm.x $curdir/$subdir/sdt_asm.stp [pwd]/sdt_asm.x
 	} else {
 	    untested "$test asm"
 	    continue
@@ -66,4 +65,5 @@ if {[istarget "x86_64-*-*"] || [istarget "i*86-*-*"]} {
     }
 } else { unsupported "$test asm" } ; # x86_64 | i.86
 
-cleanup_handler $verbose
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -1,8 +1,10 @@
 set test "strftime"
 if {![installtest_p]} { untested $test; return }
 
-# cleanup
-system "rm -f %*"
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
 
 foreach runtime [get_runtime_list] {
     set test "strftime"
@@ -49,3 +51,6 @@ foreach runtime [get_runtime_list] {
     # cleanup
     system "rm -f %*"
 }
+
+# Switch back from the testcase specific working directory
+cd $curdir

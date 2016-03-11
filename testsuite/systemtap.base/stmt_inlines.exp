@@ -1,6 +1,11 @@
 set test "stmt_inlines"
 if {![uprobes_p]} { untested "$test"; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # This test verifies that probing a statement in a function inlined multiple
 # times will place a probe at all instances.
 
@@ -11,22 +16,16 @@ if {![uprobes_p]} { untested "$test"; return }
 if {[strverscmp $GCC_Version 4.4] < 0} {
    verbose -log "skipping $test.exp: GCC too old ($GCC_Version vs. 4.4)"
    untested $test
+   cd $curdir
    return
 }
 
-proc cleanup_test {} {
-   global test
-   if {[file exists "$test"]} {
-      file delete "$test"
-   }
-}
-
-catch {exec gcc -g -o $test $srcdir/$subdir/$test.c} err
+catch {exec gcc -g -o $test $curdir/$subdir/$test.c} err
 if {$err == "" && [file exists $test]} {
    pass "$test (compiled)"
 } else {
    fail "$test (compilation error)"
-   cleanup_test
+   cd $curdir
    return
 }
 
@@ -48,7 +47,7 @@ if {!$failed} {
    pass "$test (listing)"
 } else {
    fail "$test (listing error)"
-   cleanup_test
+   cd $curdir
    return
 }
 
@@ -56,7 +55,7 @@ if {!$failed} {
 
 if {![installtest_p]} {
    untested "$test (runtime)"
-   cleanup_test
+   cd $curdir
    return
 }
 
@@ -83,9 +82,9 @@ if {$n == 4} {
    pass "$test (probing)"
 } else {
    fail "$test (probing error, expected 4, got $n)"
-   cleanup_test
+   cd $curdir
    return
 }
 
-cleanup_test
-
+# Switch back from the testcase specific working directory
+cd $curdir

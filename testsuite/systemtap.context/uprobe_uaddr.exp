@@ -4,11 +4,16 @@
 
 set test "uprobe_uaddr"
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 # Only run on make installcheck and uprobes present.
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uretprobes_p]} { untested "$test"; return }
 
-set testpath  "$srcdir/$subdir"
+set testpath  "$curdir/$subdir"
 set testsrc   "$testpath/uprobe_stmt_num.c"
 set testexe   "[pwd]/$test"
 
@@ -20,6 +25,7 @@ set res [target_compile $testsrc $testexe executable $testflags]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $testsrc"
+    cd $curdir
     return
 }
 
@@ -63,3 +69,6 @@ if [string match "main *" [lindex $output_lines 5]] {
 } else {
     pass "$test return from main"
 }
+
+# Switch back from the testcase specific working directory
+cd $curdir

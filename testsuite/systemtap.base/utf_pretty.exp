@@ -3,10 +3,15 @@ set test "utf_pretty"
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 set ::result_string {{.c8='s', .c16='t', .c32='p', .s8="stap\u0391\u03A9\u263A\U0001F608", .s16="stap\u0391\u03A9\u263A\U0001F608", .s32="stap\u0391\u03A9\u263A\U0001F608"}}
 
-set srcfile "$srcdir/$subdir/$test.cxx"
-set stpfile "$srcdir/$subdir/$test.stp"
+set srcfile "$curdir/$subdir/$test.cxx"
+set stpfile "$curdir/$subdir/$test.stp"
 set exefile "[pwd]/$test.exe"
 set test_flags "compiler=g++ additional_flags=-g additional_flags=-std=c++0x"
 set res [target_compile "$srcfile" "$exefile" executable "$test_flags"]
@@ -14,6 +19,7 @@ if { $res != "" } {
   verbose "target_compile failed: $res" 2
   fail "$test compile"
   untested "$test"
+  cd $curdir
   return
 } else {
   pass "$test compile"
@@ -26,4 +32,6 @@ foreach runtime [get_runtime_list] {
       stap_run3 $test "$stpfile" -c "$exefile"
   }
 }
-if { $verbose == 0 } { catch { exec rm -f $exefile } }
+
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -5,6 +5,12 @@ set test_progs {"dtrace_clone"}
 if {![installtest_p]} { untested $TEST_NAME; return }
 if {![uprobes_p]} { untested $TEST_NAME; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set origsrcdir $srcdir
+set srcdir [pwd]
+cd $artifactsdir
+
 source $srcdir/$subdir/test_progs.tcl
 
 # We have to be root to use CLONE_NEWPID.
@@ -31,7 +37,8 @@ set output_string "main - pid: \[0-9\]+\r\nmain - child pid: \[0-9\]+\r\nchild1 
 set TEST_NAME "dtrace_clone1"
 if {[build_test_progs "Makefile.clone" $test_progs] == 0} {
     fail "$TEST_NAME - build failure"
-    cleanup_test_progs
+    cd $srcdir
+    set srcdir $origsrcdir
     return
 } else {
     pass "$TEST_NAME - build success"
@@ -46,7 +53,8 @@ stap_run $TEST_NAME run_test_prog $output_string \
 set TEST_NAME "dtrace_clone3"
 if {[build_test_progs "Makefile.clone" $test_progs "-DUSE_SEMAPHORES"] == 0} {
     fail "$TEST_NAME - build failure"
-    cleanup_test_progs
+    cd $srcdir
+    set srcdir $origsrcdir
     return
 } else {
     pass "$TEST_NAME - build success"
@@ -57,5 +65,6 @@ set TEST_NAME "dtrace_clone4"
 stap_run $TEST_NAME run_test_prog $output_string \
   $srcdir/$subdir/dtrace_clone.stp $build_dir/dtrace_clone
 
-# Cleanup
-cleanup_test_progs
+# Switch back from the testcase specific working directory
+cd $srcdir
+set srcdir $origsrcdir

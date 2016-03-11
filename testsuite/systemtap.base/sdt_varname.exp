@@ -1,5 +1,4 @@
 set test "sdt_varname"
-set testpath "$srcdir/$subdir"
 
 if {![installtest_p]} {
    untested "$test"
@@ -10,12 +9,22 @@ if {![uprobes_p]} {
    return
 }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+if {[catch {eval exec ln -s $curdir/sys $artifactsdir}]} {
+    fail "test (symlink sys)"
+    exit 1
+}
+cd $artifactsdir
+
 # In this testcase, we verify that stap can parse SDT operands of the type
 # [off+]varname[+off][(reg)]. These occur when the operands refer to STB_GLOBAL
 # or STB_LOCAL objects.
 
 set sopath "lib$test.so"
 set exepath "$test"
+set testpath "$curdir/$subdir"
 
 proc test_cleanup {} {
    global sopath exepath
@@ -36,7 +45,7 @@ if { $res == "" } {
     pass "$test library compile"
 } else {
     fail "$test library compile: $res"
-    test_cleanup
+    cd $curdir
     return
 }
 
@@ -52,7 +61,7 @@ if { $res == "" } {
     pass "$test exe compile"
 } else {
     fail "$test exe compile: $res"
-    test_cleanup
+    cd $curdir
     return
 }
 
@@ -71,4 +80,6 @@ lib localstruct.zoo = 10
 lib localstruct.poo = 11}
 
 stap_run2 $testpath/$test.stp $exepath $sopath -c "./$exepath"
-test_cleanup
+
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -1,4 +1,14 @@
 set test "sdt"
+
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+if {[catch {eval exec ln -s $curdir/sys $artifactsdir}]} {
+    fail "test (symlink sys)"
+    exit 1
+}
+cd $artifactsdir
+
 set result_string10 {_
 1
 1 2
@@ -94,7 +104,7 @@ set test_flags "$test_flags additional_flags=-Werror $pbtype_flag"
 
 set saveidx 0
 
-set res [target_compile $srcdir/$subdir/$test.c $testprog executable "$test_flags $extra_flag [lindex $type_pedantics $j]"]
+set res [target_compile $curdir/$subdir/$test.c $testprog executable "$test_flags $extra_flag [lindex $type_pedantics $j]"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     # -std=gnu++0x and -std=c++0x are not universally accepted
@@ -123,11 +133,10 @@ if {[installtest_p]} {
 	append ::result_string $result_string12
     }
     sdt_stap_run "$test $extra_mssg $type_pedantic_mssg $pbtype_mssg" \
-	-w $FAIL $srcdir/$subdir/$test.stp $testprog -c ./$testprog
+	-w $FAIL $curdir/$subdir/$test.stp $testprog -c ./$testprog
 } else {
     untested "$test $extra_mssg $type_pedantic_mssg $pbtype_mssg"
 }
-catch {exec rm -f $testprog}
 
 
 } ; # type_pedantics_idx
@@ -136,3 +145,5 @@ catch {exec rm -f $testprog}
 
 } ; # for {set i 0} {$i < [llength $pbtype_flags]}
 
+# Switch back from the testcase specific working directory
+cd $curdir

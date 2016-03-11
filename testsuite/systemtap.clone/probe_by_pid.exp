@@ -6,6 +6,12 @@ set test_progs {"probe_by_pid"}
 if {![installtest_p]} { untested $TEST_NAME; return }
 if {![utrace_p]} { untested $TEST_NAME; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set origsrcdir $srcdir
+set srcdir [pwd]
+cd $artifactsdir
+
 source $srcdir/$subdir/test_progs.tcl
 
 proc run_test_prog {} {
@@ -31,7 +37,8 @@ proc run_test_prog {} {
 set TEST_NAME "probe_by_pid(utrace)"
 if {[build_test_progs "Makefile.probe_by_pid" $test_progs] == 0} {
     fail "$TEST_NAME - build failure"
-    cleanup_test_progs
+    cd $srcdir
+    set srcdir $origsrcdir
     # In theory we could go on here and test the uprobe tests, but
     # let's just quit.
     return
@@ -71,7 +78,12 @@ catch {close -i $id2}; catch {wait -i $id2}
 # probes get hit in PATH2?
 
 set TEST_NAME "probe_by_pid(function)"
-if {![uprobes_p]} { untested $TEST_NAME; return }
+if {![uprobes_p]} {
+    untested $TEST_NAME
+    cd $srcdir
+    set srcdir $origsrcdir
+    return
+}
 # do uprobes tests here - both function and sdt marker
 
 # Run the 1st instance of the test program.
@@ -103,5 +115,6 @@ catch {close -i $id2}; catch {wait -i $id2}
 # FIXME: we could also test hard-linked paths with
 # 'process(PATH).mark(MARK)' probes (with and without semaphores).
 
-# Cleanup
-cleanup_test_progs
+# Switch back from the testcase specific working directory
+cd $srcdir
+set srcdir $origsrcdir

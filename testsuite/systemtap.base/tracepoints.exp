@@ -1,5 +1,10 @@
 set test "tracepoints"
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 set tracepoints {}
 spawn stap -l {kernel.trace("*")}
 expect {
@@ -139,13 +144,20 @@ if {[string length $tracepoints]} {
    }
 }
 
-if {![installtest_p]} { untested $test; return }
+if {![installtest_p]} {
+    untested $test
+    cd $curdir
+    return
+}
 
 set ::result_string {tracepoints OK}
-stap_run2 $srcdir/$subdir/$test.stp -w
+stap_run2 $curdir/$subdir/$test.stp -w
 
 # Now test tracepoints2.stp
 append test 2
 
 set ::result_string {sched:sched_switch}
-stap_run2 $srcdir/$subdir/$test.stp
+stap_run2 $curdir/$subdir/$test.stp
+
+# Switch back from the testcase specific working directory
+cd $curdir

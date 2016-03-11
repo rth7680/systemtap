@@ -5,6 +5,11 @@ set ok 0
 set ko 0
 if {![installtest_p]} { untested $test; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 proc match_perm_val {paths perms} {
     global test
     global ok
@@ -67,4 +72,5 @@ set systemtap_script {
 set output_string "Testing permissions\r\nvalue=\"600\r\n\"\r\n"
 stap_run $test check_perm_val $output_string -e $systemtap_script -m $test 
 
-exec /bin/rm -f ${test}.ko
+# Switch back from the testcase specific working directory
+cd $curdir

@@ -5,6 +5,12 @@ set test_progs {"dtrace_vfork_parent" "dtrace_child"}
 if {![installtest_p]} { untested $TEST_NAME; return }
 if {![uprobes_p]} { untested $TEST_NAME; return }
 
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set origsrcdir $srcdir
+set srcdir [pwd]
+cd $artifactsdir
+
 source $srcdir/$subdir/test_progs.tcl
 
 proc run_test_prog {} {
@@ -19,7 +25,8 @@ set output_string "parent - pid: \[0-9\]+\r\nparent - child pid: \[0-9\]+\r\nchi
 set TEST_NAME "dtrace_vfork_exec1"
 if {[build_test_progs "Makefile.vfork_exec" $test_progs] == 0} {
     fail "$TEST_NAME - build failure"
-    cleanup_test_progs
+    cd $srcdir
+    set srcdir $origsrcdir
     return
 } else {
     pass "$TEST_NAME - build success"
@@ -35,7 +42,8 @@ stap_run $TEST_NAME run_test_prog $output_string \
 set TEST_NAME "dtrace_vfork_exec3"
 if {[build_test_progs "Makefile.vfork_exec" $test_progs "-DUSE_SEMAPHORES"] == 0} {
     fail "$TEST_NAME - build failure"
-    cleanup_test_progs
+    cd $srcdir
+    set srcdir $origsrcdir
     return
 } else {
     pass "$TEST_NAME - build success"
@@ -47,5 +55,6 @@ stap_run $TEST_NAME run_test_prog $output_string \
   $srcdir/$subdir/dtrace_vfork_exec.stp $build_dir/dtrace_vfork_parent \
   $build_dir/dtrace_child
 
-# Cleanup
-cleanup_test_progs
+# Switch back from the testcase specific working directory
+cd $srcdir
+set srcdir $origsrcdir

@@ -1,18 +1,24 @@
 set test speculate
 
-catch {exec gcc -g -o $test $srcdir/$subdir/$test.c} err
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
+catch {exec gcc -g -o $test $curdir/$subdir/$test.c} err
 if {$err == "" && [file exists $test]} then { pass "$test compile" } else { fail "$test compile" }
 
-set rc [stap_run_batch $srcdir/$subdir/$test.stp]
+set rc [stap_run_batch $curdir/$subdir/$test.stp]
 if {$rc == 0} then { pass "$test -p4" } else { fail "$test -p4" }
 
 if {! [installtest_p]} {
     catch {exec rm -f $test}
     untested "$test -p5"
+    cd $curdir
     return
 }
 
-spawn stap $srcdir/$subdir/$test.stp -c ./$test
+spawn stap $curdir/$subdir/$test.stp -c ./$test
 set ok 0
 expect {
 	-timeout 60
@@ -24,4 +30,6 @@ expect {
 catch { close }
 wait
 if {$ok == 4} then { pass "$test -p5" } else { fail "$test -p5 ($ok)" }
-exec rm -f $test
+
+# Switch back from the testcase specific working directory
+cd $curdir

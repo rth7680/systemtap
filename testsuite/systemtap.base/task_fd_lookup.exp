@@ -1,9 +1,15 @@
 set test "task_fd_lookup"
-set srcpath "${srcdir}/${subdir}/${test}.c"
-set exepath "[pwd]/${test}"
 
 # Only run on make installcheck
 if {! [installtest_p]} { untested "$test"; return }
+
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
+set srcpath "${curdir}/${subdir}/${test}.c"
+set exepath "[pwd]/${test}"
 
 # Compile the test exectuable (which opens several directories, pipes,
 # and a socket).
@@ -11,12 +17,14 @@ set res [target_compile $srcpath $exepath executable "additional_flags=-g"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $srcpath"
+    cd $curdir
     return
 }
 
 # Create a tempory directory.
 if {[catch {exec mktemp -d -t staptestXXXXXX} tmpdir]} {
     verbose -log "Failed to create temporary directory: $tmpdir"
+    cd $curdir
     return
 }
 
@@ -25,11 +33,12 @@ set full_tmpdir "${tmpdir}/a/b/c/d/e/f/g"
 if {[catch {exec mkdir -p ${full_tmpdir}} res]} {
     verbose -log "Failed to create temporary directory: $tmpdir"
     catch {exec rm -rf "$tmpdir"}
+    cd $curdir
     return
 }
 
-spawn stap $srcdir/$subdir/$test.stp -c "$exepath $full_tmpdir"
-verbose -log "stap $srcdir/$subdir/$test.stp -c \"$exepath $full_tmpdir\""
+spawn stap $curdir/$subdir/$test.stp -c "$exepath $full_tmpdir"
+verbose -log "stap $curdir/$subdir/$test.stp -c \"$exepath $full_tmpdir\""
 set found_root 0
 set found_tmpdir 0
 set found_pipe 0
@@ -61,6 +70,5 @@ if {$found_root == 1 && $found_tmpdir == 1 && $found_pipe == 2
     fail "$test ($found_root, $found_tmpdir, $found_pipe, $found_socket)"
 }
 
-# Cleanup.
-catch {exec rm -rf "$tmpdir $exepath"}
-return
+# Switch back from the testcase specific working directory
+cd $curdir

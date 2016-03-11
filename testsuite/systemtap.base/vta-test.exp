@@ -1,4 +1,10 @@
 set test "vta-test"
+
+# Use testcase specific directory for testcase artifacts
+set artifactsdir [setup_artifacts_dir]
+set curdir [pwd]
+cd $artifactsdir
+
 set ::result_string {a: {17, 23}
 i: 0x6
 a: {17, 23}
@@ -23,7 +29,7 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
     set test_flags "$test_flags [sdt_includes]"
     set test_flags "$test_flags $extra_flag"
 
-    set res [target_compile $srcdir/$subdir/$test.c $test-$extra_name.exe executable "$test_flags"]
+    set res [target_compile $curdir/$subdir/$test.c $test-$extra_name.exe executable "$test_flags"]
     if { $res != "" } {
 	verbose "target_compile $test-$extra_name failed: $res" 2
 	fail "$test.c compile $extra_name"
@@ -48,10 +54,10 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
 			${runtime}_kfails $i
 		    }
 		    stap_run3 $test-$extra_name-$runtime \
-			$srcdir/$subdir/$test.stp ./$test-$extra_name.exe \
+			$curdir/$subdir/$test.stp ./$test-$extra_name.exe \
 			-c ./$test-$extra_name.exe --runtime=$runtime
 		} elseif {[uprobes_p]} {
-		    stap_run3 $test-$extra_name $srcdir/$subdir/$test.stp \
+		    stap_run3 $test-$extra_name $curdir/$subdir/$test.stp \
 			./$test-$extra_name.exe -c ./$test-$extra_name.exe 
 		} else {
 		    untested "$test-$extra_name"
@@ -65,3 +71,6 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
     }
     catch {exec rm -f $test-$extra_name.exe}
 }
+
+# Switch back from the testcase specific working directory
+cd $curdir
