@@ -443,8 +443,9 @@ installcheck: site.exp
 # files for all the tests, plus separate logs per testcase are kept in the artifacts
 # directory. Serial tests (see below) log to artifacts/__serialtests.
 installcheck-parallel: site.exp
+	runtest systemtap.base/environment_sanity.exp
 	-rm -rf artifacts
-	$(MAKE) -k do-installcheck-parallel; \
+	-$(MAKE) -k do-installcheck-parallel; \
 	result=$$?; \
 	$(SHELL) $(srcdir)/dg-extract-results.sh \
 	`find artifacts -name systemtap.sum -print` > systemtap.sum; \

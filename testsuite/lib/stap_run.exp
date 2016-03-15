@@ -165,7 +165,9 @@ proc print_system_info {} {
         clone_output "\n"
 }
 
-print_system_info
+if { ! [info exists env(STAP_PARALLEL)] } {
+    print_system_info
+}
 
 # tests better all be true
 #
