@@ -104,6 +104,8 @@ extern int optind;
 static bool use_db_password;
 static unsigned short port;
 static long max_threads;
+static size_t max_uncompressed_req_size;
+static size_t max_compressed_req_size;
 static string cert_db_path;
 static string stap_options;
 static string uname_r;
@@ -208,19 +210,24 @@ parse_options (int argc, char **argv)
     {
       char *num_endptr;
       long port_tmp;
+      long maxsize_tmp;
       // NB: The values of these enumerators must not conflict with the values of ordinary
       // characters, since those are returned by getopt_long for short options.
       enum {
 	LONG_OPT_PORT = 256,
 	LONG_OPT_SSL,
 	LONG_OPT_LOG,
-	LONG_OPT_MAXTHREADS
+	LONG_OPT_MAXTHREADS,
+        LONG_OPT_MAXREQSIZE = 254,
+        LONG_OPT_MAXCOMPRESSEDREQ = 255 /* need to set a value otherwise there are conflicts */
       };
       static struct option long_options[] = {
         { "port", 1, NULL, LONG_OPT_PORT },
         { "ssl", 1, NULL, LONG_OPT_SSL },
         { "log", 1, NULL, LONG_OPT_LOG },
         { "max-threads", 1, NULL, LONG_OPT_MAXTHREADS },
+        { "max-request-size", 1, NULL, LONG_OPT_MAXREQSIZE},
+        { "max-compressed-request", 1, NULL, LONG_OPT_MAXCOMPRESSEDREQ},
         { NULL, 0, NULL, 0 }
       };
       int grc = getopt_long (argc, argv, "a:B:D:I:kPr:R:", long_options, NULL);
@@ -280,6 +287,24 @@ parse_options (int argc, char **argv)
 	    fatal (_F("%s: invalid entry: max threads must not be negative '--max-threads=%s'",
 		      argv[0], optarg));
 	  break;
+        case LONG_OPT_MAXREQSIZE:
+          maxsize_tmp =  strtoul(optarg, &num_endptr, 0); // store as a long for now
+	  if (*num_endptr != '\0')
+	    fatal (_F("%s: cannot parse number '--max-request-size=%s'", argv[0], optarg));
+          else if (maxsize_tmp < 1)
+	    fatal (_F("%s: invalid entry: max (uncompressed) request size must be greater than 0 '--max-request-size=%s'",
+		      argv[0], optarg));
+          max_uncompressed_req_size = (size_t) maxsize_tmp; // convert the long to an unsigned
+          break;
+        case LONG_OPT_MAXCOMPRESSEDREQ:
+          maxsize_tmp =  strtoul(optarg, &num_endptr, 0); // store as a long for now
+	  if (*num_endptr != '\0')
+	    fatal (_F("%s: cannot parse number '--max-compressed-request=%s'", argv[0], optarg));
+          else if (maxsize_tmp < 1)
+	    fatal (_F("%s: invalid entry: max compressed request size must be greater than 0 '--max-compressed-request=%s'",
+		      argv[0], optarg));
+          max_compressed_req_size = (size_t) maxsize_tmp; // convert the long to an unsigned
+          break;
 	case '?':
 	  // Invalid/unrecognized option given. Message has already been issued.
 	  break;
@@ -961,6 +986,8 @@ initialize (int argc, char **argv) {
   use_db_password = false;
   port = 0;
   max_threads = sysconf( _SC_NPROCESSORS_ONLN ); // Default to number of processors
+  max_uncompressed_req_size = 50000; // 50 KB: default max uncompressed request size
+  max_compressed_req_size = 5000; // 5 KB: default max compressed request size
   keep_temp = false;
   struct utsname utsname;
   uname (& utsname);
@@ -1024,7 +1051,6 @@ readDataFromSocket(PRFileDesc *sslSocket, const char *requestFileName)
   char        buffer[READ_BUFFER_SIZE];
 
   // Read the number of bytes to be received.
-  /* XXX: impose a limit to prevent disk space consumption DoS */
   numBytesRead = PR_Read_Complete (sslSocket, & numBytesExpected,
 				   (PRInt32)sizeof (numBytesExpected));
   if (numBytesRead == 0) /* EOF */
@@ -1046,6 +1072,13 @@ readDataFromSocket(PRFileDesc *sslSocket, const char *requestFileName)
      There is no client request. */
   if (numBytesExpected == 0)
     return 0;
+
+  /* Impose a limit to prevent disk space consumption DoS */
+  if (numBytesExpected > (PRInt32) max_compressed_req_size)
+    {
+      server_error (_("Error size of (compressed) request file is too large"));
+      goto done;
+    }
 
   /* Open the output file.  */
   local_file_fd = PR_Open(requestFileName, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
@@ -2060,6 +2093,47 @@ spawn_and_wait (const vector<string> &argv, int *spawnrc,
 #undef CHECKRC
 }
 
+/* Given the path to the compressed request file, return 0 if the size of the
+ * uncompressed request is within the determined limit. */
+int
+check_uncompressed_request_size (const char * zip_file)
+{
+  vector<string> args;
+  ostringstream result;
+
+  // Generate the command to heck the uncompressed size
+  args.push_back("unzip");
+  args.push_back("-Zt");
+  args.push_back(zip_file);
+
+  int rc = stap_system_read (0, args, result);
+  if (rc != 0)
+    {
+    server_error (_F("Unable to check the zipefile size. Error code: %d .", rc));
+    return rc;
+    }
+
+  // Parse the result from the unzip call, looking for the third token
+  vector<string> toks;
+  tokenize(result.str(), toks, " ");
+  if (toks.size() < 3)
+    {
+      // Something went wrong and the format is probably not what we expect.
+      server_error("Unable to check the uncompressed zipfile size. Output came in an unexpected format.");
+      return -1;
+    }
+
+  long uncomp_size = atol(toks[2].c_str());
+  if (uncomp_size < 1 || (unsigned)uncomp_size > max_uncompressed_req_size)
+    {
+      server_error(_F("Uncompressed request size of %ld bytes is not within the expected range of 1 to %zu bytes.",
+                      uncomp_size,max_uncompressed_req_size));
+      return -1;
+    }
+
+  return 0; // If it got to this point, everthing went well.
+}
+
 /* Function:  void *handle_connection()
  *
  * Purpose: Handle a connection to a socket.  Copy in request zip
@@ -2185,6 +2259,13 @@ handle_connection (void *arg)
 	goto cleanup;
     }
 #endif
+
+  /* Just before we do any kind of processing, we want to check that the request there will
+   * be enough memory to unzip the file. */
+  if (check_uncompressed_request_size(requestFileName))
+    {
+      goto cleanup;
+    }
 
   /* Unzip the request. */
   secStatus = SECFailure;
