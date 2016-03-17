@@ -417,7 +417,7 @@ proc test_probes { privilege } {
 
 	# Run stap.
 	verbose -log "eval exec $cmd"
-	set rc [catch {eval exec $cmd} res_stap]
+	set rc [catch {eval exec -ignorestderr $cmd} res_stap]
 	verbose -log "rc == $rc"
 	verbose -log "$res_stap"
 
