@@ -1,7 +1,7 @@
 set test "bz1214176"
 
 proc chk_rc {command} {
-    set rc [catch {eval exec "$command"} msg]
+    set rc [catch {eval exec -ignorestderr "$command"} msg]
     if {$rc == 0} { pass "$command" } else { fail "$command" }
 }
 
