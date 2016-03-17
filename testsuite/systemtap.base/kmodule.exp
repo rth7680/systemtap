@@ -24,11 +24,11 @@ proc build_and_install_module {} {
     catch {exec cp -p $curdir/$subdir/stap_kmodule.Makefile $build_dir/Makefile }
 
     # Build the module
-    if {[catch {exec make -C $build_dir clean} res]} {
+    if {[catch {exec -ignorestderr make -C $build_dir clean} res]} {
 	verbose -log "$res"
 	return 0
     }
-    catch {exec make -C $build_dir} res
+    catch {exec -ignorestderr make -C $build_dir} res
     if {![file exists $build_dir/stap_kmodule.ko]} {
 	verbose -log "$res"
 	return 0
