@@ -189,6 +189,7 @@ proc expect_probe { func callee expout {inlined 0} {return_p 0}
     spawn stap -e "$script" -c "./$test ; true"
     expect {
 	-timeout 30
+	-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re "$regexp" {
 	    # This actually *decrements* n
 	    incr n -1
@@ -554,6 +555,7 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
 	eval spawn stap -L {$probe}
 	expect {
 	    -timeout 30
+	    -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	    -re "$regexp" { set failed 0 }
 	    timeout {
 		kill -INT -[exp_pid] 2
@@ -587,6 +589,7 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
 	set failed 1
 	expect {
 	    -timeout 30
+	    -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	    {caller foo callee bar} { set failed 0 }
 	    timeout { kill -INT -[exp_pid] 2 }
 	    eof { }
