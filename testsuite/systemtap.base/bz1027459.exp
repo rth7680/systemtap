@@ -13,6 +13,7 @@ spawn stap $curdir/$subdir/$test.stp
 set ok 0
 expect {
 	-timeout 240
+        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {^hi\r\n} { incr ok; exp_continue }
 	timeout { fail "$test (timeout)" }
 	eof { }
