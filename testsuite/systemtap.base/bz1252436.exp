@@ -10,7 +10,7 @@ if {![installtest_p] || !$am_root} {
 
 set cmd "stap -e { probe timer.s(1) { exit() } }"
 
-set rc [catch {eval exec "$cmd"}]
+set rc [catch {eval exec -ignorestderr "$cmd"}]
 
 if {$rc == 0} { pass "$test" } else { fail "$test" }
 
