@@ -92,7 +92,6 @@ proc globbing_test { mssg script builddir } {
 	    set ok 0
 	    expect {
 		-timeout 180
-		-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 		-re {^bar begin\r\n} { incr ok; exp_continue }
 		-re {^bar 2\r\n} { incr ok; exp_continue }
 		-re {^In test_probe_2 probe 0x2\r\n} { incr ok; exp_continue }
@@ -146,7 +145,6 @@ foreach runtime [get_runtime_list] {
     set ok 0
     expect {
 	-timeout 180
-	-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {Added -d '.*libsdt.so' due to 'libsdt.so'}  {
 	    incr ok; exp_continue }
 	-re {Added -d '/lib.*/libm.so.[0-9]' due to 'libm.so.[0-9]'} {
@@ -180,7 +178,6 @@ foreach runtime [get_runtime_list] {
     set ok 0
     expect {
 	-timeout 180
-	-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {libsdt.so.*bar} { incr ok; exp_continue }
 	-re {libsdt.so.*baz} { incr ok; exp_continue }
 	-re {libsdt.so.*buz} { incr ok; exp_continue }

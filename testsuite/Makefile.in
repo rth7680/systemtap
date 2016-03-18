@@ -443,7 +443,7 @@ installcheck: site.exp
 # files for all the tests, plus separate logs per testcase are kept in the artifacts
 # directory. Serial tests (see below) log to artifacts/__serialtests.
 installcheck-parallel: site.exp
-	runtest systemtap.base/environment_sanity.exp
+	MAKEFLAGS= runtest systemtap.base/environment_sanity.exp
 	-rm -rf artifacts
 	-$(MAKE) -k do-installcheck-parallel; \
 	result=$$?; \
@@ -498,12 +498,12 @@ do-installcheck-parallel: installcheck-serial-tests $(REGULAR_TEST_TARGETS)
 installcheck-serial-tests: site.exp
 	-rmmod uprobes 2>/dev/null
 	mkdir -p artifacts/__serialtests
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+	-MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 installcheck/%.exp: site.exp
 	-rmmod uprobes 2>/dev/null
 	mkdir -p artifacts/$*
-	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+	-MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

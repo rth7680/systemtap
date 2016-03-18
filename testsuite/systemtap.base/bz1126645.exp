@@ -10,7 +10,6 @@ spawn stap -c {/bin/true} -e {probe kprocess.exec_complete {println("return")}}
 set ok 0
 expect {
 	-timeout 60
-	-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {^return\r\n} { incr ok; exp_continue }
 	timeout { fail "$test (timeout)" }
 	eof { }

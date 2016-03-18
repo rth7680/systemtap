@@ -17,7 +17,6 @@ foreach bk $bad_kprobes {
     spawn stap -g -e "$script" "$bk"
     expect {
         -timeout 60
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
         -re "^WARNING: probe .*registration error.*\r\ncleanup ok\r\n" { pass $test }
         eof { fail "$test (eof)" }
         timeout { fail "$test (timeout)" }
@@ -31,7 +30,6 @@ foreach bk $bad_kprobes {
     spawn stap -g -w -e "$script" "$bk ?"
     expect {
         -timeout 60
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
         -re "^cleanup ok\r\n" { pass $test }
         eof { fail "$test (eof)" }
         timeout { fail "$test (timeout)" }

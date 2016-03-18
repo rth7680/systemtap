@@ -17,7 +17,6 @@ foreach runtime [get_runtime_list] {
     set ok 0
     expect {
 	-timeout 180
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {one,0x1.*one,0x2.*two,0x1.*two,0x2} { incr ok; exp_continue }
 	-re {epsilon."one", 1. count:4 min:1 max:4 sum:10 avg:2} {
 	    incr ok; exp_continue }
@@ -47,7 +46,6 @@ foreach runtime [get_runtime_list] {
     # ok should only change by 1
     expect {
 	-timeout 180
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {Avg time = [0-9]} { incr ok; exp_continue }
     }
     catch {close}; catch {wait}
@@ -65,7 +63,6 @@ foreach runtime [get_runtime_list] {
     set ok 0
     expect {
 	-timeout 180
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
 	-re {gs0_save=0x29} { incr ok; exp_continue }
 	-re {gs2=0x4} { incr ok; exp_continue }
 	-re {gs3=0x4} { incr ok; exp_continue }
@@ -91,7 +88,6 @@ foreach runtime [get_runtime_list] {
     # strictly look for "hello". if anything else is printed it's a fail.
     expect {
 	-timeout 180
-        -re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)[^\r\n]*\r\n} { exp_continue }
         -re {^hello!$} { incr ok; exp_continue }
 	timeout { fail "$test (timeout)" }
 	eof { }

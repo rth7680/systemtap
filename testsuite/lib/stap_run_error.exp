@@ -11,7 +11,6 @@ proc stap_run_error { TEST_NAME EXPECT_ERROR ERROR_STRING OUTPUT_CHECK_STRING ar
     eval spawn $cmd
     expect {
 	-timeout 150
-	-re {^make\[[0-9]+\]: ((Entering|Leaving) directory|warning: -jN forced in submake: disabling jobserver mode)} {exp_continue}
 	-re {^WARNING: [^\r]+\r\n} {exp_continue}
 	-re {^Pass\ [1234]: [^\r]+real\ ms\.\r\n} {exp_continue}
 	-re {^Pass\ ([34]): using cached [^\r]+\r\n} {exp_continue}
