@@ -479,15 +479,9 @@ slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
 	systemtap.base/stmt_rel.exp systemtap.base/library.exp \
 	systemtap.server/client_args.exp
 
-# Following tests are causing Make to "*** Interrupt" (needs investigation)
-# Throwing them away for now.
-bad_tests = systemtap.base/procfs_maxsize.exp systemtap.clone/dtrace_clone.exp \
-	systemtap.clone/dtrace_fork_exec.exp systemtap.clone/dtrace_vfork_exec.exp
-
 regular_tests := $(shell cd $(srcdir) && find systemtap.* -name '*.exp' -print)
 regular_tests := $(filter-out $(serial_tests),$(regular_tests))
 regular_tests := $(filter-out $(slow_tests),$(regular_tests))
-regular_tests := $(filter-out $(bad_tests),$(regular_tests))
 regular_tests := $(slow_tests) $(regular_tests)
 
 REGULAR_TEST_TARGETS := $(addprefix installcheck/,$(regular_tests))
