@@ -14,6 +14,7 @@ clean-local:
 	-rm -f flightrec*
 	-rm -f *.so
 	-rm -f uprobe_*
+	-rm -rf artifacts
 
 DEJAZILLA=@dejazilla@
 TESTAPPS=@enable_testapps@
@@ -30,6 +31,62 @@ installcheck: site.exp
 	-rmmod uprobes 2>/dev/null
 	-$(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="$(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'"
 	if test -n "$(DEJAZILLA)"; then mail $(DEJAZILLA) < systemtap.sum; fi
+
+# In the parallel mode, the dg-extract-results.sh generates common .sum and .log
+# files for all the tests, plus separate logs per testcase are kept in the artifacts
+# directory. Serial tests (see below) log to artifacts/__serialtests.
+installcheck-parallel: site.exp
+	-rmmod uprobes 2>/dev/null
+	rm -rf artifacts
+	mkdir -p artifacts/__serialtests
+	MAKEFLAGS= runtest systemtap.base/environment_sanity.exp
+	-$(MAKE) -k do-installcheck-parallel; \
+	result=$$?; \
+	$(SHELL) $(srcdir)/dg-extract-results.sh \
+	`find artifacts -name systemtap.sum -print` > systemtap.sum; \
+	$(SHELL) $(srcdir)/dg-extract-results.sh -L \
+	`find artifacts -name systemtap.log -print` > systemtap.log; \
+	exit $$result
+# Tests that need to run serially. This namely applies to systemtap.server tests.
+# They start a new systemtap server and only expect one local server to run.
+serial_tests = systemtap.server/client.exp systemtap.server/client_args.exp \
+	systemtap.server/server.exp systemtap.server/server_args.exp \
+	systemtap.server/server_concurrency.exp systemtap.server/server_locale.exp
+
+# There are a few tests known to be slow. We run them right from the beginning
+# to try to lessen the overall time taken by the test suite -- if one of these
+# tests happens to be run late, it will cause the overall time to increase.
+slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
+	systemtap.base/listing_mode.exp systemtap.syscall/nd_syscall.exp \
+	systemtap.unprivileged/unprivileged_myproc.exp systemtap.syscall/syscall.exp \
+	systemtap.base/sdt_misc.exp systemtap.pass1-4/parseok.exp \
+	systemtap.base/listing_mode_sanity.exp systemtap.pass1-4/parse-semok.exp \
+	systemtap.pass1-4/semok.exp systemtap.unprivileged/unprivileged_probes.exp \
+	systemtap.pass1-4/buildok-interactive.exp \
+	systemtap.onthefly/uprobes_onthefly.exp systemtap.server/server_concurrency.exp \
+	systemtap.onthefly/kprobes_onthefly.exp systemtap.base/sdt.exp \
+	systemtap.onthefly/hrtimer_onthefly.exp \
+	systemtap.onthefly/tracepoint_onthefly.exp systemtap.exelib/exelib.exp \
+	systemtap.pass1-4/semko.exp systemtap.pass1-4/parseko.exp \
+	systemtap.base/rlimit.exp systemtap.base/tracepoints.exp \
+	systemtap.base/systemtap-service.exp systemtap.maps/map_hash.exp \
+	systemtap.base/stmt_rel.exp systemtap.base/library.exp \
+	systemtap.server/client_args.exp
+
+all_tests := $(shell cd $(srcdir) && find systemtap.* -name '*.exp' -print)
+regular_tests := $(filter-out $(serial_tests) $(slow_tests) ,$(all_tests))
+
+REGULAR_TEST_TARGETS := $(addprefix installcheck/,$(slow_tests) $(regular_tests))
+
+do-installcheck-parallel: installcheck-serial-tests $(REGULAR_TEST_TARGETS)
+	@:
+
+installcheck-serial-tests: site.exp
+	-MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+
+installcheck/%.exp: site.exp
+	mkdir -p artifacts/$*
+	-MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/$* $*.exp $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 # $(srcdir)/These values point the test suite to the install tree, and
 # are overridden by "make check" from full source/build tree
