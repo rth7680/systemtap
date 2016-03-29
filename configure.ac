@@ -1,7 +1,7 @@
 dnl configure.ac --- autoconf input file for systemtap
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([systemtap], 3.0, systemtap@sourceware.org, systemtap)
+AC_INIT([systemtap], 3.1, systemtap@sourceware.org, systemtap)
 dnl                  ^^^ see also NEWS, systemtap.spec, testsuite/configure.ac
 dnl                      doc/SystemTap_Beginners_Guide/en-US/Book_Info.xml
 
@@ -670,6 +670,12 @@ AS_IF([test "x$with_selinux" != "xno"], [
 ], [have_selinux=no])
 
 AM_CONDITIONAL([HAVE_SELINUX], [test "${have_selinux}" = "yes"])
+
+dnl Used in monitor mode. Only available on kernel versions >= 2.6.35
+AC_CHECK_DECL([F_SETPIPE_SZ],
+              [AC_DEFINE(HAVE_F_SETPIPE_SZ,[1], Define to 1 if F_SETPIPE_SZ is available.)],
+              [],
+              [#include <fcntl.h>])
 
 dnl Handle java+byteman support
 AC_CHECK_PROG(have_javac, javac, yes, no)

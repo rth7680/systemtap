@@ -1,5 +1,5 @@
 // elaboration functions
-// Copyright (C) 2005-2015 Red Hat Inc.
+// Copyright (C) 2005-2016 Red Hat Inc.
 // Copyright (C) 2008 Intel Corporation
 //
 // This file is part of systemtap, and is free software.  You can
@@ -2017,6 +2017,199 @@ void add_global_var_display (systemtap_session& s)
     }
 }
 
+static void monitor_mode_read(systemtap_session& s)
+{
+  if (!s.monitor) return;
+
+  stringstream code;
+
+  unsigned long rough_max_json_size = 100 +
+    s.globals.size() * 100 +
+    s.probes.size() * 200;
+  
+  code << "probe procfs(\"monitor_status\").read.maxsize(" << rough_max_json_size << ") {" << endl;
+  code << "try {"; // absorb .= overflows!
+  code << "elapsed = (jiffies()-__monitor_module_start)/HZ()" << endl;
+  code << "hrs = elapsed/3600; mins = elapsed%3600/60; secs = elapsed%3600%60;" << endl;
+  code << "$value .= sprintf(\"{\\n\")" << endl;
+  code << "$value .= sprintf(\"\\\"uptime\\\": \\\"%02d:%02d:%02d\\\",\\n\", hrs, mins, secs)" << endl;
+  code << "$value .= sprintf(\"\\\"uid\\\": \\\"%d\\\",\\n\", uid())" << endl;
+  code << "$value .= sprintf(\"\\\"memory\\\": \\\"%s\\\",\\n\", module_size())" << endl;
+  code << "$value .= sprintf(\"\\\"module_name\\\": \\\"%s\\\",\\n\", module_name())" << endl;
+
+  code << "$value .= sprintf(\"\\\"globals\\\": {\\n\")" << endl;
+  for (vector<vardecl*>::const_iterator it = s.globals.begin();
+      it != s.globals.end(); ++it)
+    {
+      if ((*it)->synthetic) continue;
+
+      if (it != s.globals.begin())
+        code << "$value .= sprintf(\",\\n\")" << endl;
+
+      code << "$value .= sprintf(\"\\\"%s\\\":\", \"" << (*it)->unmangled_name << "\")" << endl;
+      if ((*it)->arity == 0)
+        code << "$value .= string_quoted(sprint(" << (*it)->name << "))" << endl;
+      else if ((*it)->arity > 0)
+        code << "$value .= sprintf(\"\\\"[%d]\\\"\", " << (*it)->maxsize << ")" << endl;
+    }
+  code << "$value .= sprintf(\"\\n},\\n\")" << endl;
+
+  code << "$value .= sprintf(\"\\\"probe_list\\\": [\\n\")" << endl;
+  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
+      it != s.probes.end(); ++it)
+    {
+      if (it != s.probes.begin())
+        code << "$value .= sprintf(\",\\n\")" << endl;
+
+      istringstream probe_point((*it)->sole_location()->str());
+      string name;
+      probe_point >> name;
+      /* Escape quotes once for systemtap parser and once more for json parser */
+      name = lex_cast_qstring(lex_cast_qstring(name));
+
+      code << "$value .= sprintf(\"{%s\", __private___monitor_data_function_probes("
+           << it-s.probes.begin() << "))" << endl;
+      code << "$value .= sprintf(\"\\\"name\\\": %s}\", " << name << ")" << endl;
+    }
+  code << "$value .= sprintf(\"\\n],\\n\")" << endl;
+
+  code << "$value .= sprintf(\"}\\n\")" << endl;
+
+  code << "} catch(ex) { warn(\"JSON construction error: \" . ex) }" << endl;
+  code << "}" << endl;
+  probe* p = parse_synthetic_probe(s, code, 0);
+  if (!p)
+    throw SEMANTIC_ERROR (_("can't create procfs probe"), 0);
+
+  vector<derived_probe*> dps;
+  derive_probes (s, p, dps);
+
+  derived_probe* dp = dps[0];
+  s.probes.push_back (dp);
+  dp->join_group (s);
+
+  // Repopulate symbol info
+  symresolution_info sym (s);
+  sym.current_function = 0;
+  sym.current_probe = dp;
+  dp->body->visit (&sym);
+}
+
+static void monitor_mode_write(systemtap_session& s)
+{
+  if (!s.monitor) return;
+
+  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
+      it != s.probes.end()-1; ++it) // Skip monitor read probe
+    {
+      vardecl* v = new vardecl;
+      v->unmangled_name = v->name = "__monitor_" + lex_cast(it-s.probes.begin()) + "_enabled";
+      v->tok = (*it)->tok;
+      v->set_arity(0, (*it)->tok);
+      v->type = pe_long;
+      v->init = new literal_number(1);
+      v->synthetic = true;
+      s.globals.push_back(v);
+
+      symbol* sym = new symbol;
+      sym->name = v->name;
+      sym->tok = v->tok;
+      sym->type = pe_long;
+      sym->referent = v;
+
+      if ((*it)->sole_location()->condition)
+        {
+          logical_and_expr *e = new logical_and_expr;
+          e->tok = v->tok;
+          e->left = sym;
+          e->op = "&&";
+          e->type = pe_long;
+          e->right = (*it)->sole_location()->condition;
+          (*it)->sole_location()->condition = e;
+        }
+      else
+        {
+          (*it)->sole_location()->condition = sym;
+        }
+    }
+
+  stringstream code;
+
+  code << "probe procfs(\"monitor_control\").write {" << endl;
+
+  code << "if ($value == \"clear\") {";
+  for (vector<vardecl*>::const_iterator it = s.globals.begin();
+      it != s.globals.end(); ++it)
+    {
+      vardecl* v = *it;
+
+      if (v->synthetic) continue;
+
+      if (v->arity == 0 && v->init)
+        {
+          if (v->type == pe_long)
+            {
+              literal_number* ln = dynamic_cast<literal_number*>(v->init);
+              code << v->name << " = " << ln->value << endl;
+            }
+          else if (v->type == pe_string)
+            {
+              literal_string* ln = dynamic_cast<literal_string*>(v->init);
+              code << v->name << " = " << lex_cast_qstring(ln->value) << endl;
+            }
+        }
+      else
+        {
+          // For scalar elements with no initial values, we reset to 0 or empty as
+          // done with arrays and aggregates.
+          code << "delete " << v->name << endl;
+        }
+    }
+
+  code << "} else if ($value == \"resume\") {" << endl;
+  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
+      it != s.probes.end()-1; ++it)
+    {
+      code << "  __monitor_" << it-s.probes.begin() << "_enabled" << " = 1" << endl;
+    }
+
+  code << "} else if ($value == \"pause\") {" << endl;
+  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
+      it != s.probes.end()-1; ++it)
+    {
+      code << "  __monitor_" << it-s.probes.begin() << "_enabled" << " = 0" << endl;
+    }
+  code << "} else if ($value == \"quit\") {" << endl;
+  code << "  exit()" << endl;
+  code << "}";
+
+  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
+      it != s.probes.end()-1; ++it)
+    {
+      code << "  if ($value == \"" << it-s.probes.begin() << "\")"
+           << "  __monitor_" << it-s.probes.begin() << "_enabled" << " ^= 1" << endl;
+    }
+
+  code << "}" << endl;
+
+  probe* p = parse_synthetic_probe(s, code, 0);
+  if (!p)
+    throw SEMANTIC_ERROR (_("can't create procfs probe"), 0);
+
+  vector<derived_probe*> dps;
+  derive_probes (s, p, dps);
+
+  derived_probe* dp = dps[0];
+  s.probes.push_back (dp);
+  dp->join_group (s);
+
+  // Repopulate symbol info
+  symresolution_info sym (s, /* omniscient-unmangled */ true);
+  sym.current_function = 0;
+  sym.current_probe = dp;
+  dp->body->visit (&sym);
+}
+
 static void create_monitor_function(systemtap_session& s)
 {
   functiondecl* fd = new functiondecl;
@@ -2065,6 +2258,15 @@ static void monitor_mode_init(systemtap_session& s)
   v->synthetic = true;
   s.globals.push_back(v);
 
+  embeddedcode* ec = new embeddedcode;
+  ec->code = "#define STAP_MONITOR_READ 8192\n"
+             "static char _monitor_buf[STAP_MONITOR_READ];";
+  s.embeds.push_back(ec);
+
+  create_monitor_function(s);
+  monitor_mode_read(s);
+  monitor_mode_write(s);
+
   stringstream code;
   code << "probe begin {" << endl;
   code << "__monitor_module_start = jiffies()" << endl;
@@ -2078,191 +2280,10 @@ static void monitor_mode_init(systemtap_session& s)
   derive_probes (s, p, dps);
 
   derived_probe* dp = dps[0];
-  s.probes.insert (s.probes.begin(), dp);
+  s.probes.push_back (dp);
   dp->join_group (s);
 
   // Repopulate symbol info
-  symresolution_info sym (s);
-  sym.current_function = 0;
-  sym.current_probe = dp;
-  dp->body->visit (&sym);
-
-  embeddedcode* ec = new embeddedcode;
-  ec->code = "#define STAP_MONITOR_READ 8192\n"
-             "static char _monitor_buf[STAP_MONITOR_READ];";
-  s.embeds.push_back(ec);
-
-  create_monitor_function(s);
-}
-
-static void monitor_mode_read(systemtap_session& s)
-{
-  if (!s.monitor) return;
-
-  stringstream code;
-
-  code << "probe procfs(\"monitor_status\").read.maxsize(8192) {" << endl;
-  code << "elapsed = (jiffies()-__monitor_module_start)/HZ()" << endl;
-  code << "hrs = elapsed/3600; mins = elapsed%3600/60; secs = elapsed%3600%60;" << endl;
-  code << "$value .= sprintf(\"{\\n\")" << endl;
-  code << "$value .= sprintf(\"\\\"uptime\\\": \\\"%02d:%02d:%02d\\\",\\n\", hrs, mins, secs)" << endl;
-  code << "$value .= sprintf(\"\\\"uid\\\": \\\"%d\\\",\\n\", uid())" << endl;
-  code << "$value .= sprintf(\"\\\"memory\\\": \\\"%s\\\",\\n\", module_size())" << endl;
-  code << "$value .= sprintf(\"\\\"module_name\\\": \\\"%s\\\",\\n\", module_name())" << endl;
-
-  code << "$value .= sprintf(\"\\\"globals\\\": {\\n\")" << endl;
-  for (vector<vardecl*>::const_iterator it = s.globals.begin();
-      it != s.globals.end(); ++it)
-    {
-      if ((*it)->synthetic) continue;
-
-      if (it != s.globals.begin())
-        code << "$value .= sprintf(\",\\n\")" << endl;
-
-      code << "$value .= sprintf(\"\\\"%s\\\"\", \"" << (*it)->unmangled_name << "\")" << endl;
-      if ((*it)->arity == 0)
-        code << "$value .= sprint(\": \", " << (*it)->name << ", \"\")" << endl;
-      else if ((*it)->arity > 0)
-        code << "$value .= sprintf(\": \\\"(%d)\\\"\", " << (*it)->maxsize << ")" << endl;
-    }
-  code << "$value .= sprintf(\"\\n},\\n\")" << endl;
-
-  code << "$value .= sprintf(\"\\\"probes\\\": [\\n\")" << endl;
-  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
-      it != s.probes.end(); ++it)
-    {
-      if (it != s.probes.begin())
-        code << "$value .= sprintf(\",\\n\")" << endl;
-
-      istringstream probe_point((*it)->sole_location()->str());
-      string name;
-      probe_point >> name;
-      /* Escape quotes once for systemtap parser and once more for json parser */
-      name = lex_cast_qstring(lex_cast_qstring(name));
-
-      code << "$value .= sprintf(\"{%s\", __private___monitor_data_function_probes("
-           << it-s.probes.begin() << "))" << endl;
-      code << "$value .= sprintf(\"\\\"name\\\": %s}\", " << name << ")" << endl;
-    }
-  code << "$value .= sprintf(\"\\n]\\n\")" << endl;
-
-  code << "$value .= sprintf(\"}\\n\")" << endl;
-
-  code << "}" << endl;
-
-  probe* p = parse_synthetic_probe(s, code, 0);
-  if (!p)
-    throw SEMANTIC_ERROR (_("can't create procfs probe"), 0);
-
-  vector<derived_probe*> dps;
-  derive_probes (s, p, dps);
-
-  derived_probe* dp = dps[0];
-  s.probes.push_back (dp);
-  dp->join_group (s);
-
-  // Repopulate symbol and type info
-  symresolution_info sym (s);
-  sym.current_function = 0;
-  sym.current_probe = dp;
-  dp->body->visit (&sym);
-}
-
-static void monitor_mode_write(systemtap_session& s)
-{
-  if (!s.monitor) return;
-
-  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
-      it != s.probes.end(); ++it)
-    {
-      vardecl* v = new vardecl;
-      v->unmangled_name = v->name = "__global___monitor_" + lex_cast(it-s.probes.begin()) + "_enabled";
-      v->tok = (*it)->tok;
-      v->set_arity(0, (*it)->tok);
-      v->type = pe_long;
-      v->init = new literal_number(1);
-      v->synthetic = true;
-      s.globals.push_back(v);
-
-      symbol* sym = new symbol;
-      sym->name = v->name;
-      sym->tok = v->tok;
-      sym->type = pe_long;
-      sym->referent = v;
-
-      if ((*it)->sole_location()->condition)
-        {
-          logical_and_expr *e = new logical_and_expr;
-          e->tok = v->tok;
-          e->left = sym;
-          e->op = "&&";
-          e->type = pe_long;
-          e->right = (*it)->sole_location()->condition;
-          (*it)->sole_location()->condition = e;
-        }
-      else
-        {
-          (*it)->sole_location()->condition = sym;
-        }
-    }
-
-  stringstream code;
-
-  code << "probe procfs(\"monitor_control\").write {" << endl;
-
-  code << "  if ($value == \"exit\") { exit()";
-
-  code << "  } else if ($value == \"reset\") {";
-  for (vector<vardecl*>::const_iterator it = s.globals.begin();
-      it != s.globals.end(); ++it)
-    {
-      vardecl* v = *it;
-
-      if (v->synthetic) continue;
-
-      if (v->arity == 0 && v->init)
-        {
-          if (v->type == pe_long)
-            {
-              literal_number* ln = dynamic_cast<literal_number*>(v->init);
-              code << v->name << " = " << ln->value << endl;
-            }
-          else if (v->type == pe_string)
-            {
-              literal_string* ln = dynamic_cast<literal_string*>(v->init);
-              code << v->name << " = " << lex_cast_qstring(ln->value) << endl;
-            }
-        }
-      else
-        {
-          // For scalar elements with no initial values, we reset to 0 or empty as
-          // done with arrays and aggregates.
-          code << "delete " << v->name << endl;
-        }
-    }
-  code << "}" << endl;
-
-  for (vector<derived_probe*>::const_iterator it = s.probes.begin();
-      it != s.probes.end(); ++it)
-    {
-      code << "  if ($value == \"" << it-s.probes.begin() << "\")"
-           << "  __monitor_" << it-s.probes.begin() << "_enabled" << " ^= 1" << endl;
-    }
-
-  code << "}" << endl;
-
-  probe* p = parse_synthetic_probe(s, code, 0);
-  if (!p)
-    throw SEMANTIC_ERROR (_("can't create procfs probe"), 0);
-
-  vector<derived_probe*> dps;
-  derive_probes (s, p, dps);
-
-  derived_probe* dp = dps[0];
-  s.probes.push_back (dp);
-  dp->join_group (s);
-
-  // Repopulate symbol and type info
   symresolution_info sym (s);
   sym.current_function = 0;
   sym.current_probe = dp;
@@ -2285,8 +2306,6 @@ semantic_pass (systemtap_session& s)
 
       if (rc == 0) rc = semantic_pass_symbols (s);
       if (rc == 0) monitor_mode_init (s);
-      if (rc == 0) monitor_mode_read (s);
-      if (rc == 0) monitor_mode_write (s);
       if (rc == 0) rc = semantic_pass_conditions (s);
       if (rc == 0) rc = semantic_pass_optimize1 (s);
       if (rc == 0) rc = semantic_pass_types (s);
@@ -2335,8 +2354,8 @@ semantic_pass (systemtap_session& s)
 // semantic processing: symbol resolution
 
 
-symresolution_info::symresolution_info (systemtap_session& s):
-  session (s), current_function (0), current_probe (0)
+symresolution_info::symresolution_info (systemtap_session& s, bool omniscient_unmangled):
+  session (s), unmangled_p(omniscient_unmangled), current_function (0), current_probe (0)
 {
 }
 
@@ -2617,8 +2636,16 @@ symresolution_info::find_var (interned_string name, int arity, const token* tok)
 	}
 
   // search processed globals
-  string gname = "__global_" + string(name);
-  string pname = "__private_" + detox_path(tok->location.file->name) + string(name);
+  string gname, pname;
+  if (unmangled_p)
+    {
+      gname = pname = string(name);
+    }
+  else
+    {
+      gname = "__global_" + string(name);
+      pname = "__private_" + detox_path(tok->location.file->name) + string(name);
+    }
   for (unsigned i=0; i<session.globals.size(); i++)
   {
     if ((session.globals[i]->name == name && startswith(name, "__global_")) ||

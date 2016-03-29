@@ -1,6 +1,6 @@
 /* -*- linux-c -*- 
  * pmap API generator
- * Copyright (C) 2005-2008, 2012 Red Hat Inc.
+ * Copyright (C) 2005-2016 Red Hat Inc.
  *
  * This file is part of systemtap, and is free software.  You can
  * redistribute it and/or modify it under the terms of the GNU General
@@ -191,14 +191,7 @@ static int KEYSYM(_stp_pmap_set) (PMAP pmap, ALLKEYSD(key), VSTYPE val)
 {
 	int res;
 	MAP m = _stp_pmap_get_map (pmap, MAP_GET_CPU());
-#ifdef NEED_MAP_LOCKS
-	if (!MAP_TRYLOCK(m)) {
-		MAP_PUT_CPU();
-		return -3;
-	}
-#endif
 	res = KEYSYM(__stp_map_set) (m, ALLKEYS(key), val, 0);
-	MAP_UNLOCK(m);
         MAP_PUT_CPU();
 	return res;
 }
@@ -207,14 +200,7 @@ static int KEYSYM(_stp_pmap_add) (PMAP pmap, ALLKEYSD(key), VSTYPE val)
 {
 	int res;
 	MAP m = _stp_pmap_get_map (pmap, MAP_GET_CPU());
-#ifdef NEED_MAP_LOCKS
-	if (!MAP_TRYLOCK(m)) {
-		MAP_PUT_CPU();
-		return -3;
-	}
-#endif
 	res = KEYSYM(__stp_map_set) (m, ALLKEYS(key), val, 1);
-	MAP_UNLOCK(m);
         MAP_PUT_CPU();
 	return res;
 }
@@ -229,29 +215,17 @@ static VALTYPE KEYSYM(_stp_pmap_get_cpu) (PMAP pmap, ALLKEYSD(key))
 	VALTYPE res;
 	MAP map;
 
-	if (pmap == NULL)
-		return NULLRET;
-
 	map = _stp_pmap_get_map (pmap, MAP_GET_CPU());
-#ifdef NEED_MAP_LOCKS
-	if (!MAP_TRYLOCK(map)) {
-		MAP_PUT_CPU();
-		return NULLRET;
-	}
-#endif
-
-	hv = KEYSYM(hash) (ALLKEYS(key));
+	hv = KEYSYM(hash) (ALLKEYS(key)) & map->hash_table_mask;
 	head = &map->hashes[hv];
 	mhlist_for_each_entry(n, e, head, node.hnode) {
 		if (KEY_EQ_P(n)) {
 			res = MAP_GET_VAL(n);
-			MAP_UNLOCK(map);
 			MAP_PUT_CPU();
 			return res;
 		}
 	}
 	/* key not found */
-	MAP_UNLOCK(map);
         MAP_PUT_CPU();
 	return NULLRET;
 }
@@ -266,14 +240,11 @@ static VALTYPE KEYSYM(_stp_pmap_get) (PMAP pmap, ALLKEYSD(key))
 	struct map_node *anode = NULL;
 	MAP map, agg;
 
-	if (pmap == NULL)
-		return NULLRET;
-
 	hv = KEYSYM(hash) (ALLKEYS(key));
 
 	/* first look it up in the aggregation map */
 	agg = _stp_pmap_get_agg(pmap);
-	ahead = &agg->hashes[hv];
+	ahead = &agg->hashes[hv & agg->hash_table_mask];
 	mhlist_for_each_entry(n, e, ahead, node.hnode) {
 		if (KEY_EQ_P(n)) {
 			anode = &n->node;
@@ -285,12 +256,7 @@ static VALTYPE KEYSYM(_stp_pmap_get) (PMAP pmap, ALLKEYSD(key))
 	/* now total each cpu */
 	for_each_possible_cpu(cpu) {
 		map = _stp_pmap_get_map (pmap, cpu);
-#ifdef NEED_MAP_LOCKS
-		if (!MAP_TRYLOCK(map))
-			return NULLRET;
-#endif
-
-		head = &map->hashes[hv];
+		head = &map->hashes[hv & map->hash_table_mask];
 		mhlist_for_each_entry(n, e, head, node.hnode) {
 			if (KEY_EQ_P(n)) {
 				if (anode == NULL) {
@@ -305,7 +271,6 @@ static VALTYPE KEYSYM(_stp_pmap_get) (PMAP pmap, ALLKEYSD(key))
 				}
 			}
 		}
-		MAP_UNLOCK(map);
 	}
 	if (anode && !clear_agg) 
 		return MAP_GET_VAL(KEYSYM(get_map_node)(anode));
@@ -326,9 +291,6 @@ static int KEYSYM(_stp_pmap_del) (PMAP pmap, ALLKEYSD(key))
 	int cpu;
 	MAP m;
 
-	if (pmap == NULL)
-		return -1;
-
 	/* Get the key's hash */
 	if (KEYSYM(keycheck) (ALLKEYS(key)) == 0)
 		return -1;
@@ -337,12 +299,8 @@ static int KEYSYM(_stp_pmap_del) (PMAP pmap, ALLKEYSD(key))
 	/* Delete in each cpu's map */
 	for_each_possible_cpu(cpu) {
 		m = _stp_pmap_get_map (pmap, cpu);
-#ifdef NEED_MAP_LOCKS
-		if (!MAP_TRYLOCK(m))
-			return -1;
-#endif
-		(void)KEYSYM(_stp_map_del_hash) (m, hv, ALLKEYS(key));
-		MAP_UNLOCK(m);
+		(void)KEYSYM(_stp_map_del_hash) (m, hv & m->hash_table_mask,
+                                                 ALLKEYS(key));
 	}
 
 	/* Note that we don't need to delete the aggregate's value,

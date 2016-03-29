@@ -243,14 +243,31 @@ Add the given C preprocessor directive to the module Makefile.  These can
 be used to override limit parameters described below.
 .TP
 .BI \-B " NAME=VALUE"
-Add the given make directive to the kernel module build's make invocation.
-These can be used to add or override kconfig options.
+In kernel-runtime mode, add the given make directive to the kernel module
+build's make invocation.  These can be used to add or override kconfig options.
+For example, use
+.SAMPLE
+.B \-B CONFIG_DEBUG_INFO=y
+.ESAMPLE
+to add debugging information.
+.TP
+.BI \-B " FLAG"
+In dyninst-runtime mode, add the given parameter to the compiler CFLAGS used
+for building the dyninst shared library.  For example, use
+.SAMPLE
+.B \-B \-g
+.ESAMPLE
+to add debugging information.
 .TP
 .BI \-a " ARCH"
 Use a cross-compilation mode for the given target architecture.  This requires
 access to the cross-compiler and the kernel build tree, and goes along
 with the
-.BR "\-B CROSS_COMPILE=arch\-tool\-prefix\-" " and " "\-r /build/tree"
+.SAMPLE
+.BR "\-B CROSS_COMPILE=arch\-tool\-prefix\-"
+and
+.BR "\-r /build/tree"
+.ESAMPLE
 options.
 .TP
 .BI \-\-modinfo " NAME=VALUE"
@@ -774,20 +791,30 @@ refresh rate in seconds of the status window. The module can also be controlled 
 of commands using the following keys:
 .RS
 .TP
-.BI r
-resets all global variables to their initial values or zeroes them if they
+.BI c
+Resets all global variables to their initial values or zeroes them if they
 did not have an initial value.
 .TP
 .BI s
-rotates the attribute used to sort the list of probes.
+Rotates the attribute used to sort the list of probes.
 .TP
 .BI t
-brings up a prompt to allow toggling(on/off) of probes by index.
+Brings up a prompt to allow toggling(on/off) of probes by index. Probe points
+are still affected by their conditions.
+.TP
+.BI r
+Resumes the script by toggling on all probes.
+.TP
+.BI p
+Pauses the script by toggling off all probes.
+.TP
+.BI x
+Hides/shows the status window. This allows for more output to be seen.
 .TP
 .BI navigation-keys
-the j/k/ArrowDown/ArrowUp keys can be used to scroll through the probe
-list and the d/u/PageDown/PageUp keys can be used to scroll through the
-module output.
+The j/k/ArrowDown/ArrowUp keys can be used to scroll through the probe
+list and the d,D/u,U/PageDown,End/PageUp,Home keys can be used to scroll
+through the module output.
 .RE
 
 .SH ARGUMENTS
@@ -1169,7 +1196,8 @@ function will have a special "unknown" type with no return value.
 .TP
 .BR next
 Return now from enclosing probe handler.  This is especially useful in
-probe aliases that apply event filtering predicates.
+probe aliases that apply event filtering predicates. When used in functions,
+the execution will be immediately transferred to the next overloaded function.
 .TP
 .BR try " { STMT1 } " catch " { STMT2 }"
 Run the statements in the first block.  Upon any run-time errors, abort
@@ -2152,6 +2180,13 @@ global big[10000],little[5]
 or denoted with
 .IR %
 to make them wrap-around automatically.
+.TP
+MAPHASHBIAS
+The number of powers-of-two to add or subtract from the natural size of the
+hash table backing each global associative array.  Default is 0.  Try small
+positive numbers to get extra performance at the cost of more memory
+consumption, because that should reduce hash table collisions.
+Try small negative numbers for the opposite tradeoff.
 .TP
 MAXERRORS
 Maximum number of soft errors before an exit is triggered, default 0, which

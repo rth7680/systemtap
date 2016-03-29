@@ -1,4 +1,7 @@
 #include "staprun.h"
+
+#ifdef HAVE_MONITOR_LIBS
+
 #include <json-c/json.h>
 #include <curses.h>
 #include <time.h>
@@ -6,8 +9,9 @@
 #define COMP_FNS 7
 #define MAX_INDEX_LEN 5
 #define MAX_COLS 256
-#define MAX_DATA 8192
+#define MAX_DATA 262144 /* XXX: pass procfs.read().maxsize(NNN) from stap */
 #define MAX_HISTORY 8192
+#define MAX_LINELENGTH 4096
 
 #define MIN(X,Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X,Y) (((X) > (Y)) ? (X) : (Y))
@@ -16,10 +20,11 @@
 
 typedef struct History_Queue
 {
-  char *buf[MAX_HISTORY];
-  size_t allocated[MAX_HISTORY];
-  int front;
-  int back;
+  char *lines[MAX_HISTORY]; /* each malloc/strdup'd(). */
+  char linebuf[MAX_LINELENGTH]; /* beyond this length, we cut up lines */
+  int linebuf_ptr; /* index into linebuf[] where next line piece should be read */
+  int oldest;
+  int newest;
   int count;
 } History_Queue;
 
@@ -38,8 +43,10 @@ enum probe_attributes
 static enum state
 {
   normal,
+  exited,
   insert,
-  help
+  help,
+  exited_help,
 } monitor_state; 
 
 static History_Queue h_queue;
@@ -52,8 +59,9 @@ static int output_scroll = 0;
 static time_t elapsed_time = 0;
 static time_t start_time = 0;
 static int resized = 0;
-static int input = 0;
+static int input = 0; /* fresh input received in monitor_input() */
 static int rendered = 0;
+static int status_hidden = 0;
 
 /* Forward declarations */
 static int comp_index(const void *p1, const void *p2);
@@ -151,11 +159,14 @@ static void write_command(const char *msg, const unsigned len)
   FILE* fp;
 
   if (sprintf_chk(path, "/proc/systemtap/%s/monitor_control", modname))
-    cleanup_and_exit (0, 1);
+    return;
   if (!(fp = fopen(path, "w")))
-    cleanup_and_exit (0, 1);
+    return;
   if (fwrite(msg, 1, len, fp) != len)
-    cleanup_and_exit (0, 1);
+    {
+      fclose(fp);
+      return;
+    }
   fclose(fp);
 }
 
@@ -164,17 +175,22 @@ static void handle_resize()
   usleep (500*1000); /* prevent too many allocations */
   endwin();
   refresh();
+
   if (monitor_status)
-    {
-      delwin(monitor_status);
-      monitor_status = newwin(LINES/2,COLS,0,0);
-    }
+    delwin(monitor_status);
+  /* Status window not needed when hidden */
+  if (!status_hidden)
+    monitor_status = newwin(LINES/2,COLS,0,0);
+
   if (monitor_output)
-    {
-      delwin(monitor_output);
-      monitor_output = newwin(LINES/2,COLS,LINES/2,0);
-      scrollok(monitor_output, TRUE);
-    }
+    delwin(monitor_output);
+  /* Use the entire screen if not displaying status */
+  if (status_hidden)
+    monitor_output = newwin(LINES,COLS,0,0);
+  else
+    monitor_output = newwin(LINES/2,COLS,LINES/2,0);
+
+  scrollok(monitor_output, TRUE);
   resized = 0;
 }
 
@@ -209,38 +225,26 @@ void monitor_cleanup(void)
 void monitor_render(void)
 {
   FILE *monitor_fp;
-  FILE *output_fp;
   char path[PATH_MAX];
   time_t current_time = time(NULL);
   int monitor_x, monitor_y, max_cols, max_rows, cur_y, cur_x;
-
+  int i;
+  
   if (resized)
     handle_resize();
 
-  output_fp = fdopen(monitor_pfd[0], "r");
+  /* Bound scrolling by window height and entry count */
+  getmaxyx(monitor_output, max_rows, max_cols);
+  output_scroll = MIN(MAX(0, h_queue.count-max_rows+1), output_scroll);
 
-  /* Render normal systemtap output */
-  if (output_fp && monitor_set)
-    {
-      int i;
-      int bytes;
+  /* Render previously recorded output */
+  wclear(monitor_output);
+  for (i = 0; i < h_queue.count-output_scroll; i++)
+    wprintw(monitor_output, "%s", h_queue.lines[(h_queue.oldest+i) % MAX_HISTORY]);
+  wrefresh(monitor_output);
 
-      while ((bytes = getline(&h_queue.buf[h_queue.back],
-              &h_queue.allocated[h_queue.back], output_fp)) != -1)
-        {
-          h_queue.back = (h_queue.back+1) % MAX_HISTORY;
-          if (h_queue.count < MAX_HISTORY)
-            h_queue.count++;
-          else
-            h_queue.front = (h_queue.front+1) % MAX_HISTORY;
-        }
-
-      wclear(monitor_output);
-      for (i = 0; i < h_queue.count-output_scroll; i++)
-        wprintw(monitor_output, "%s", h_queue.buf[(h_queue.front+i) % MAX_HISTORY]);
-
-      wrefresh(monitor_output);
-    }
+  if (status_hidden)
+    return;
 
   if (!input && rendered && (elapsed_time = current_time - start_time) < monitor_interval)
     return;
@@ -252,51 +256,97 @@ void monitor_render(void)
   max_rows = monitor_y;
   max_cols = MIN(MAX_COLS, monitor_x);
 
-  if (monitor_state != help)
+  if (monitor_state == help)
     {
-      if (sprintf_chk(path, "/proc/systemtap/%s/monitor_status", modname))
-        cleanup_and_exit (0, 1);
-      monitor_fp = fopen(path, "r");
+      /* Render help page */
+      rendered = 0;
+      wclear(monitor_status);
+      wprintw(monitor_status, "MONITOR MODE COMMANDS\n");
+      wprintw(monitor_status, "h - Display help page.\n");
+      wprintw(monitor_status, "c - Reset all global variables to initial state, zeroes if unset.\n");
+      wprintw(monitor_status, "s - Rotate sort columns for probes.\n");
+      wprintw(monitor_status, "t - Open a prompt to enter the index of a probe to toggle.\n");
+      wprintw(monitor_status, "p/r - Pause/Resume script by toggling off/on all probes.\n");
+      wprintw(monitor_status, "x - Hide/Show the status window.\n");
+      wprintw(monitor_status, "q - Quit script.\n");
+      wprintw(monitor_status, "j,k/DownArrow,UpArrow - Scroll down/up the probe list.\n");
+      wprintw(monitor_status, "d,D/PageDown,End - Scroll down the output by one page/end.\n");
+      wprintw(monitor_status, "u,U/PageUp,Home - Scroll up the output by one page/beginning.\n");
+      mvwprintw(monitor_status, max_rows-1, 0, "press h to go back\n");
+      wrefresh(monitor_status);
+    }
+  else if (monitor_state == exited_help)
+    {
+      /* Render help page */
+      rendered = 0;
+      wclear(monitor_status);
+      wprintw(monitor_status, "EXITED MONITOR MODE COMMANDS\n");
+      wprintw(monitor_status, "h - Display help page.\n");
+      wprintw(monitor_status, "s - Rotate sort columns for probes.\n");
+      wprintw(monitor_status, "q - Quit script.\n");
+      wprintw(monitor_status, "j,k/DownArrow,UpArrow - Scroll down/up the probe list.\n");
+      wprintw(monitor_status, "d,D/PageDown,End - Scroll down the output by one page/end.\n");
+      wprintw(monitor_status, "u,U/PageUp,Home - Scroll up the output by one page/beginning.\n");
+      mvwprintw(monitor_status, max_rows-1, 0, "press h to go back\n");
+      wrefresh(monitor_status);
+    }
+  else /* monitor_state == normal OR exited OR insert */
+    {
+      static json_object *jso = NULL; /* survives across refresh calls */
+      char json[MAX_DATA];
+      size_t bytes = 0;
 
       /* Render monitor mode statistics */
+      if (sprintf_chk(path, "/proc/systemtap/%s/monitor_status", modname))
+        return;
+      monitor_fp = fopen(path, "r");
       if (monitor_fp)
         {
-          char json[MAX_DATA];
+          bytes = fread(json, sizeof(char), sizeof(json), monitor_fp);
+          fclose(monitor_fp);
+        }
+      if (bytes >= 1)
+        {
+          /* Free allocated memory */
+          if (jso)
+            json_object_put(jso);
+          jso = json_tokener_parse(json);
+        }
+
+      wclear(monitor_status);
+      
+      if (monitor_state == insert)
+        mvwprintw(monitor_status, max_rows-1, 0, "enter probe index: %s\n", probe);
+      else if (monitor_state == normal)
+        mvwprintw(monitor_status, max_rows-1, 0,
+                  "RUNNING: press h for help\n");
+      else if (monitor_state == exited)
+        mvwprintw(monitor_status, max_rows-1, 0,
+                  "EXITED: press h for help, q to quit\n");
+
+      if (jso)
+        {
           char monitor_str[MAX_COLS];
           char monitor_out[MAX_COLS];
           int printed;
           int col;
           int i;
-          size_t bytes;
+          int num_probes;
           size_t width[num_attributes] = {0};
-          json_object *jso, *jso_uptime, *jso_uid, *jso_mem,
-                      *jso_name, *jso_globals, *jso_probes;
+          json_object *jso_uptime, *jso_uid, *jso_mem,
+                      *jso_name, *jso_globals, *jso_probe_list;
           struct json_object_iterator it, it_end;
 
           rendered = 1;
 
-          bytes = fread(json, sizeof(char), MAX_DATA, monitor_fp);
-          if (!bytes)
-            cleanup_and_exit (0, 0);
-          fclose(monitor_fp);
-
-          jso = json_tokener_parse(json);
-          if (!jso)
-            cleanup_and_exit(0, 1);
           json_object_object_get_ex(jso, "uptime", &jso_uptime);
           json_object_object_get_ex(jso, "uid", &jso_uid);
           json_object_object_get_ex(jso, "memory", &jso_mem);
           json_object_object_get_ex(jso, "module_name", &jso_name);
           json_object_object_get_ex(jso, "globals", &jso_globals);
-          json_object_object_get_ex(jso, "probes", &jso_probes);
+          json_object_object_get_ex(jso, "probe_list", &jso_probe_list);
+          num_probes = json_object_array_length(jso_probe_list);
 
-          wclear(monitor_status);
-
-          if (monitor_state == insert)
-            mvwprintw(monitor_status, max_rows-1, 0, "enter probe index: %s\n", probe);
-          else
-            mvwprintw(monitor_status, max_rows-1, 0,
-                      "press h for help, q to quit\n");
           wmove(monitor_status, 0, 0);
 
           wprintw(monitor_status, "uptime: %s uid: %s memory: %s\n",
@@ -304,8 +354,9 @@ void monitor_render(void)
                   json_object_get_string(jso_uid),
                   json_object_get_string(jso_mem));
 
-          wprintw(monitor_status, "module_name: %s\n",
-                  json_object_get_string(jso_name));
+          wprintw(monitor_status, "module_name: %s probes: %d \n",
+                  json_object_get_string(jso_name),
+                  num_probes);
 
           col = 0;
           col += snprintf(monitor_out, max_cols, "globals: ");
@@ -337,11 +388,12 @@ void monitor_render(void)
           if (col != 0)
             wprintw(monitor_status, "%s\n", monitor_out);
 
+
           /* Find max width of each field for alignment uses */
-          for (i = 0; i < json_object_array_length(jso_probes); i++)
+          for (i = 0; i < num_probes; i++)
             {
               json_object *probe, *field;
-              probe = json_object_array_get_idx(jso_probes, i);
+              probe = json_object_array_get_idx(jso_probe_list, i);
 
               json_object_object_get_ex(probe, "index", &field);
               width[p_index] = MAX(width[p_index], strlen(json_object_get_string(field)));
@@ -359,7 +411,7 @@ void monitor_render(void)
               width[p_name] = MAX(width[p_name], strlen(json_object_get_string(field)));
             }
 
-          json_object_array_sort(jso_probes, comp_fn[comp_fn_index]);
+          json_object_array_sort(jso_probe_list, comp_fn[comp_fn_index]);
 
           wprintw(monitor_status, "\n%*s\t%*s\t%*s\t%*s\t%*s\t%*s\t%s\n",
                   width[p_index], HIGHLIGHT("index", p_index, comp_fn_index),
@@ -369,12 +421,14 @@ void monitor_render(void)
                   width[p_avg], HIGHLIGHT("avg", p_avg, comp_fn_index),
                   width[p_max], HIGHLIGHT("max", p_max, comp_fn_index),
                   HIGHLIGHT("name", p_name, comp_fn_index));
+
           getyx(monitor_status, cur_y, cur_x);
-          for (i = probe_scroll; i < MIN(json_object_array_length(jso_probes),
-                probe_scroll+max_rows-cur_y-2); i++)
+          if (probe_scroll >= num_probes)
+            probe_scroll--;
+          for (i = probe_scroll; i < MIN(num_probes, probe_scroll+max_rows-cur_y); i++)
             {
               json_object *probe, *field;
-              probe = json_object_array_get_idx(jso_probes, i);
+              probe = json_object_array_get_idx(jso_probe_list, i);
               json_object_object_get_ex(probe, "index", &field);
               wprintw(monitor_status, "%*s\t", width[p_index], json_object_get_string(field));
               json_object_object_get_ex(probe, "state", &field);
@@ -392,30 +446,38 @@ void monitor_render(void)
               wprintw(monitor_status, "%.*s", max_cols-cur_x-1, json_object_get_string(field));
               wprintw(monitor_status, "\n");
             }
-
-          wrefresh(monitor_status);
-
-          /* Free allocated memory */
-          json_object_put(jso);
         }
-    } else {
-      /* Render help page */
-      rendered = 0;
-      wclear(monitor_status);
-      wprintw(monitor_status, "MONITOR MODE COMMANDS\n");
-      wprintw(monitor_status, "h - Display help page.\n");
-      wprintw(monitor_status, "r - Reset global variables to initial state, zeroes if unset.\n");
-      wprintw(monitor_status, "s - Rotate sort columns for probes.\n");
-      wprintw(monitor_status, "t - Open prompt to enter a probe index to toggle.\n");
-      wprintw(monitor_status, "q - Quit monitor mode/go back to status from help page.\n");
-      wprintw(monitor_status, "j/DownArrow - Scroll down the probe list.\n");
-      wprintw(monitor_status, "k/UpArrow - Scroll up the probe list.\n");
-      wprintw(monitor_status, "d/PageDown - Scroll down the output by one page.\n");
-      wprintw(monitor_status, "u/PageUp - Scroll up the probe list by one page.\n");
-      mvwprintw(monitor_status, max_rows-1, 0, "press q to go back\n");
+      else /* ! jso */
+        {
+          wmove(monitor_status, 0, 0);
+          wprintw(monitor_status, "(data not available)");
+        }
       wrefresh(monitor_status);
     }
 }
+
+
+
+void monitor_remember_output_line(const char* buf, const size_t bytes)
+{
+  free (h_queue.lines[h_queue.newest]);
+  h_queue.lines[h_queue.newest] = strndup(buf, bytes);
+  h_queue.newest = (h_queue.newest+1) % MAX_HISTORY;
+
+  if (h_queue.count < MAX_HISTORY)
+    h_queue.count++; /* and h_queue.oldest stays at 0 */
+  else
+    h_queue.oldest = (h_queue.oldest+1) % MAX_HISTORY;
+}
+  
+
+
+void monitor_exited(void)
+{
+  monitor_state = exited;
+  input = 1;
+}
+
 
 void monitor_input(void)
 {
@@ -423,51 +485,118 @@ void monitor_input(void)
   int ch;
   int max_rows, max_cols;
 
+  /* NB: monitor_pfd[0] is the read side, O_NONBLOCK, of the pipe
+     that collects/serializes all the per-cpu outputs.  We can't
+     use stdio calls. */
+  
+  /* Collect normal systemtap output */
+  while (monitor_set)
+    {
+      ssize_t bytes = read(monitor_pfd[0],
+                           h_queue.linebuf + h_queue.linebuf_ptr,
+                           MAX_LINELENGTH - h_queue.linebuf_ptr);
+      if (bytes <= 0)
+        break;
+
+      /* Start scanning the linebuf[] for lines - \n.
+         Plop each one found into the h_queue.lines[] ring. */
+      char *p = h_queue.linebuf; /* scan position */
+      char *p_end = h_queue.linebuf + h_queue.linebuf_ptr + bytes; /* one past last byte */
+      char *line = p;
+      while (p <= p_end)
+        {
+          if (*p == '\n') /* got a line */
+            {
+              monitor_remember_output_line(line, (p-line)+1); /* strlen, including \n */
+              line = p+1;
+            }
+          p ++;
+        }
+
+      if (line != p)
+        {
+          /* Move trailing partial line (if any) to front of buffer. */
+          memmove (h_queue.linebuf, line, (p_end - line));
+          h_queue.linebuf_ptr = (p_end - line);
+        }
+      else
+        {
+          /* No line found in entire buffer!  Pretend it was all one line. */
+          monitor_remember_output_line(line, (p_end - line));
+          h_queue.linebuf_ptr = 0;
+        }
+    }          
+
+  getmaxyx(monitor_output, max_rows, max_cols);
+  (void) max_cols; /* Unused */
+
   switch (monitor_state)
     {
       case normal:
+      case exited:
         ch = getch();
         switch (ch)
           {
-            case 'j': /* Fallthrough */
+            case 'j':
             case KEY_DOWN:
               probe_scroll++;
               break;
-            case 'k': /* Fallthrough */
+            case 'k':
             case KEY_UP:
               probe_scroll--;
               probe_scroll = MAX(0, probe_scroll);
               break;
-            case 'd': /* Fallthrough */
+            case 'd':
             case KEY_NPAGE:
-              getmaxyx(monitor_status, max_rows, max_cols);
-              (void) max_cols; /* Unused */
               output_scroll -= max_rows-1;
               output_scroll = MAX(0, output_scroll);
               break;
-            case 'u': /* Fallthrough */
+            case 'u':
             case KEY_PPAGE:
-              getmaxyx(monitor_status, max_rows, max_cols);
-              (void) max_cols; /* Unused */
               output_scroll += max_rows-1;
-              output_scroll = MIN(MAX(0, h_queue.count-max_rows+1), output_scroll);
               break;
-            case 'q':
-              cleanup_and_exit (0, 0);
+            case KEY_HOME:
+            case 'U':
+              output_scroll = h_queue.count-max_rows+1;
+              break;
+            case KEY_END:
+            case 'D':
+              output_scroll = 0;
               break;
             case 's':
               comp_fn_index++;
               if (comp_fn_index == COMP_FNS)
                 comp_fn_index = 0;
               break;
+            case 'c':
+              write_command("clear", 5);
+              break;
             case 'r':
-              write_command("reset", 5);
+              write_command("resume", 6);
+              break;
+            case 'p':
+              write_command("pause", 5);
+              break;
+            case 'q':
+              if (status_hidden)
+                {
+                  status_hidden = 0;
+                  handle_resize();
+                }
+              if (monitor_state == exited)
+                cleanup_and_exit(0, 0 /* error_detected unavailable here */ );
+              else
+                write_command("quit", 4);
               break;
             case 't':
               monitor_state = insert;
               break;
             case 'h':
-              monitor_state = help;
+              monitor_state = (monitor_state == exited) ? exited_help : help;
+              break;
+            case 'x':
+              status_hidden ^= 1;
+              handle_resize();
               break;
           }
         if (ch != ERR)
@@ -496,9 +625,24 @@ void monitor_input(void)
           }
         break;
       case help:
+      case exited_help:
         ch = getch();
-        if(ch == 'q')
-          monitor_state = normal;
+        if(ch == 'h')
+          monitor_state = (monitor_state == exited_help) ? exited : normal;
         break;
     }
 }
+
+
+
+#else /* ! HAVE_MONITOR_LIBS */
+
+void monitor_winch(int signum) { (void) signum; }
+void monitor_setup(void) {}
+void monitor_cleanup(void) {}
+void monitor_render(void) {}
+void monitor_input(void) {}
+void monitor_exited(void) {}
+void monitor_remember_output_line(const char* buf, const size_t bytes) { (void)buf; (void) bytes; }
+
+#endif

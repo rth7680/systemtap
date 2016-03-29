@@ -16,10 +16,6 @@
 #include <sys/select.h>
 #include <search.h>
 #include <wordexp.h>
-#if HAVE_MONITOR_LIBS
-#include <json-c/json.h>
-#include <curses.h>
-#endif
 
 
 #define WORKAROUND_BZ467568 1  /* PR 6964; XXX: autoconf when able */
@@ -47,11 +43,10 @@ static void *signal_thread(void *arg)
     }
     dbug(2, "sigproc %d (%s)\n", signum, strsignal(signum));
     if (signum == SIGQUIT) {
-      pending_interrupts += 2;
-      break;
+      load_only = 1; /* flag for stp_main_loop */
+      pending_interrupts ++;
     } else if (signum == SIGINT || signum == SIGHUP || signum == SIGTERM) {
       pending_interrupts ++;
-      break;
     }
   }
   /* Notify main thread (interrupts select). */
@@ -140,13 +135,11 @@ static void setup_main_signals(void)
   sa.sa_handler = chld_proc;
   sigaction(SIGCHLD, &sa, NULL);
 
-#if HAVE_MONITOR_LIBS
   if (monitor)
     {
       sa.sa_handler = monitor_winch;
       sigaction(SIGWINCH, &sa, NULL);
     }
-#endif
 
   /* This signal handler is notified from the signal_thread
      whenever a interruptable event is detected. It will
@@ -221,6 +214,15 @@ void start_cmd(void)
     a.sa_handler = SIG_DFL;
     sigaction(SIGINT, &a, NULL);
 
+    /* Close any FDs we still hold, similarly as though this were
+       a program being spawned due to an system("") tapset function. */
+    closefrom(3);
+    
+    /* We could call closefrom() here, to make sure we don't leak any
+     * fds to the target, but it really isn't needed here since
+     * close-on-exec should catch everything. We don't have the
+     * synchronizations issues here we have with system_cmd(). */
+
     /* Formerly, we just execl'd(sh,-c,$target_cmd).  But this does't
        work well if target_cmd is a shell builtin.  We really want to
        probe a new child process, not a mishmash of shell-interpreted
@@ -259,6 +261,8 @@ void start_cmd(void)
    approximation, we just wait here for a signal from the parent. */
 
     dbug(1, "blocking briefly\n");
+    alarm(60); /* but not indefinitely */
+    
 #if WORKAROUND_BZ467568
     {
       /* Wait for the SIGUSR1 */
@@ -277,6 +281,7 @@ void start_cmd(void)
     raise (SIGCONT); /* Harmless; just passes control to parent. */
 #endif /* !WORKAROUND_BZ467568 */
 
+    alarm(0); /* clear alarms */
     dbug(1, "execing target_cmd %s\n", target_cmd);
 
     /* Note that execvp() is not a direct system call; it does a $PATH
@@ -322,16 +327,49 @@ void start_cmd(void)
  */
 void system_cmd(char *cmd)
 {
-  pid_t pid;
+  pid_t child_pid;
+
+  /*
+   * This needs some explanation. This function is going to fork,
+   * creating a child process. That child will close fds, then fork
+   * again to create a grandchild process, which execs the user's
+   * command. The original child immediately exits after the 2nd fork
+   * succeeds. The original parent will wait on the child to close the
+   * fds and spawn the actual command.
+   *
+   * We're not waiting on the command to finish, we're waiting for the
+   * child to close all fds (and then fork). This avoids a race if we
+   * immediately get an exit after the system_cmd() and they fight
+   * over who has the control channel and/or relay fds open.
+   */
 
   dbug(2, "system %s\n", cmd);
-  if ((pid = fork()) < 0) {
+  if ((child_pid = fork()) < 0) {	/* fork failed */
     _perr("fork");
-  } else if (pid == 0) {
-    if (execlp("sh", "sh", "-c", cmd, NULL) < 0)
-      perr("%s", cmd);
-    _exit(1);
+    return;
+  } else if (child_pid > 0) {		/* parent (stapio) */
+     dbug(2, "waiting on %lu\n", (unsigned long)child_pid);
+     (void)waitpid(child_pid, NULL, 0);
+     return;
   }
+
+  /* The child will close all fds (like the control channel and relay
+   * fds), then fork/exec cmd, creating a grandchild. */
+  pid_t grandchild_pid;
+  closefrom(3);
+
+  if ((grandchild_pid = fork()) < 0) {	/* fork failed */
+    _perr("fork");
+    _exit(1);
+  } else if (grandchild_pid > 0) {	/* child  */
+    dbug(2, "created %lu\n", (unsigned long)grandchild_pid);
+    _exit(0);
+  }
+
+  /* The grandchild will now actually run the command. */
+  if (execlp("sh", "sh", "-c", cmd, NULL) < 0)
+    perr("%s", cmd);
+  _exit(1);
 }
 
 /* This is only used in the old relayfs code */
@@ -460,10 +498,8 @@ void cleanup_and_exit(int detach, int rc)
   int rstatus;
   struct sigaction sa;
 
-#if HAVE_MONITOR_LIBS
   if (monitor)
     monitor_cleanup();
-#endif
 
   if (exiting)
     return;
@@ -582,9 +618,7 @@ int stp_main_loop(void)
   int rc;
   int maxfd;
   struct timeval tv;
-#if HAVE_MONITOR_LIBS
   struct timespec ts;
-#endif
   struct timespec *timeout = NULL;
   fd_set fds;
   sigset_t blockset, mainset;
@@ -597,7 +631,7 @@ int stp_main_loop(void)
   rc = send_request(STP_READY, NULL, 0);
   if (rc != 0) {
     perror ("Unable to send STP_READY");
-    cleanup_and_exit (1, rc);
+    cleanup_and_exit(0, rc);
   }
 
   flags = fcntl(control_channel, F_GETFL);
@@ -622,37 +656,33 @@ int stp_main_loop(void)
     pthread_sigmask(SIG_BLOCK, &blockset, &mainset);
   }
 
-#if HAVE_MONITOR_LIBS
-  /* In monitor mode, we must timeout pselect to poll the monitor
-   * interface. */
   if (monitor)
-    {
       monitor_setup();
-      ts.tv_sec = 0;
-      ts.tv_nsec = 500*1000*1000;
-      timeout = &ts;
-    }
-#endif
+  
+  /* In monitor mode, we must timeout pselect to poll the monitor
+     interface. In non-monitor mode, we must timeout pselect so that
+     we can handle pending_interrupts. */
+  ts.tv_sec = 0;
+  ts.tv_nsec = 500*1000*1000;
+  timeout = &ts;
 
   /* handle messages from control channel */
   while (1) {
-#if HAVE_MONITOR_LIBS
     if (monitor)
       {
         monitor_input();
         monitor_render();
       }
-#endif
 
     if (pending_interrupts) {
          int btype = STP_EXIT;
          int rc = write(control_channel, &btype, sizeof(btype));
          dbug(2, "signal-triggered %d exit rc %d\n", pending_interrupts, rc);
-         if (pending_interrupts >= 2) {
-            cleanup_and_exit (1, 0);
-         }
+         if (monitor || (pending_interrupts > 2)) /* user mashing on ^C multiple times */
+                 cleanup_and_exit (load_only /* = detach */, 0);
+         else
+                 {} /* await STP_EXIT reply message to kill staprun */
     }
-
 
     /* If the runtime does not implement select() on the command
        filehandle, we have to poll periodically.  The polling interval can
@@ -679,14 +709,12 @@ int stp_main_loop(void)
 	FD_ZERO(&fds);
 	FD_SET(control_channel, &fds);
         maxfd = control_channel;
-#if HAVE_MONITOR_LIBS
 	if (monitor) {
 	  FD_SET(STDIN_FILENO, &fds);
 	  FD_SET(monitor_pfd[0], &fds);
 	  if (monitor_pfd[0] > maxfd)
 	    maxfd = monitor_pfd[0];
 	}
-#endif
 	res = pselect(maxfd + 1, &fds, NULL, NULL, timeout, &mainset);
 	if (res < 0 && errno != EINTR)
 	  {
@@ -715,8 +743,11 @@ int stp_main_loop(void)
       if (strncmp(recvbuf.payload.data, "WARNING: ", 9) == 0) {
               if (suppress_warnings) break;
               if (verbose) { /* don't eliminate duplicates */
-                      /* trim "WARNING: " */
-                      warn("%.*s", (int) nb-9, recvbuf.payload.data+9);
+                      if (monitor)
+                              monitor_remember_output_line (recvbuf.payload.data, nb);
+                      else
+                              /* trim "WARNING: " */
+                              warn("%.*s", (int) nb-9, recvbuf.payload.data+9);
                       break;
               } else { /* eliminate duplicates */
                       static void *seen = 0;
@@ -726,15 +757,21 @@ int stp_main_loop(void)
 
                       if (! dupstr) {
                               /* OOM, should not happen. */
-                              /* trim "WARNING: " */
-                              warn("%.*s", (int) nb-9, recvbuf.payload.data+9);
+                              if (monitor)
+                                      monitor_remember_output_line (recvbuf.payload.data, nb);
+                              else
+                                      /* trim "WARNING: " */
+                                      warn("%.*s", (int) nb-9, recvbuf.payload.data+9);
                               break;
                       }
 
                       retval = tfind (dupstr, & seen, (int (*)(const void*, const void*))strcmp);
                       if (! retval) { /* new message */
-                              /* trim "WARNING: " */
-                              warn("%.*s", strlen(dupstr)-9, dupstr+9);
+                              if (monitor)
+                                      monitor_remember_output_line (recvbuf.payload.data, nb);
+                              else
+                                      /* trim "WARNING: " */
+                                      warn("%.*s", strlen(dupstr)-9, dupstr+9);
 
                               /* We set a maximum for stored warning messages,
                                  to prevent a misbehaving script/environment
@@ -769,18 +806,28 @@ int stp_main_loop(void)
       /* Note that "ERROR:" should not be translated, since it is
        * part of the module cmd protocol. */
       } else if (strncmp(recvbuf.payload.data, "ERROR: ", 7) == 0) {
-              /* trim "ERROR: " */
-              err("%.*s", (int) nb-7, recvbuf.payload.data+7);
+              if (monitor)
+                      monitor_remember_output_line (recvbuf.payload.data, nb);
+              else
+                      /* trim "ERROR: " */
+                      err("%.*s", (int) nb-7, recvbuf.payload.data+7);
               error_detected = 1;
       } else { /* neither warning nor error */
-              eprintf("%.*s", (int) nb, recvbuf.payload.data);
+              if (monitor)
+                      monitor_remember_output_line (recvbuf.payload.data, nb);
+              else
+                      eprintf("%.*s", (int) nb, recvbuf.payload.data);
       }
       break;
     case STP_EXIT:
       {
         /* module asks us to unload it and exit */
         dbug(2, "got STP_EXIT\n");
-        cleanup_and_exit(0, error_detected);
+        if (monitor)
+                monitor_exited();
+        else
+                cleanup_and_exit(0, error_detected);
+        /* monitor mode exit handled elsewhere, later. */
         break;
       }
     case STP_REQUEST_EXIT:
@@ -858,7 +905,7 @@ int stp_main_loop(void)
         rc = send_request(STP_START, &ts, sizeof(ts));
 	if (rc != 0) {
 	  perror ("Unable to send STP_START");
-	  cleanup_and_exit (1, rc);
+	  cleanup_and_exit(0, rc);
 	}
         if (load_only)
           cleanup_and_exit(1, 0);

@@ -7,7 +7,7 @@
  * Public License (GPL); either version 2, or (at your option) any
  * later version.
  *
- * Copyright (C) 2005-2008 Red Hat Inc.
+ * Copyright (C) 2005-2016 Red Hat Inc.
  */
 #define _FILE_OFFSET_BITS 64
 
@@ -220,6 +220,12 @@ void usage(char *prog, int rc);
 void parse_modpath(const char *);
 void setup_signals(void);
 int set_clexec(int fd);
+int open_cloexec(const char *pathname, int flags, mode_t mode);
+#ifdef HAVE_OPENAT
+int openat_cloexec(int dirfd, const char *pathname, int flags, mode_t mode);
+#endif
+int pipe_cloexec(int pipefd[2]);
+void closefrom(int lowfd);
 
 /* monitor.c function */
 void monitor_winch(int signum);
@@ -227,6 +233,8 @@ void monitor_setup(void);
 void monitor_cleanup(void);
 void monitor_render(void);
 void monitor_input(void);
+void monitor_exited(void);
+void monitor_remember_output_line(const char* buf, const size_t bytes);
 
 /*
  * variables

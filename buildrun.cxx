@@ -1,5 +1,5 @@
 // build/run probes
-// Copyright (C) 2005-2014 Red Hat Inc.
+// Copyright (C) 2005-2016 Red Hat Inc.
 //
 // This file is part of systemtap, and is free software.  You can
 // redistribute it and/or modify it under the terms of the GNU General
@@ -118,6 +118,9 @@ make_any_make_cmd(systemtap_session& s, const string& dir, const string& target)
 
   // PR13847: suppress debuginfo creation by default
   make_cmd.insert(make_cmd.end(), "CONFIG_DEBUG_INFO=");
+
+  // RHBZ1321628: suppress stack validation; expected to be temporary
+  make_cmd.insert(make_cmd.end(), "CONFIG_STACK_VALIDATION=");
 
   // Add any custom kbuild flags
   make_cmd.insert(make_cmd.end(), s.kbuildflags.begin(), s.kbuildflags.end());
@@ -244,6 +247,9 @@ compile_dyninst (systemtap_session& s)
       cmd.push_back("-ftime-report");
       cmd.push_back("-Q");
     }
+
+  // Add any custom kbuild flags
+  cmd.insert(cmd.end(), s.kbuildflags.begin(), s.kbuildflags.end());
 
   int rc = stap_system (s.verbose, cmd);
   if (rc)
@@ -438,6 +444,9 @@ compile_pass (systemtap_session& s)
   output_exportconf(s, o, "vzalloc", "STAPCONF_VZALLOC");
   output_exportconf(s, o, "vzalloc_node", "STAPCONF_VZALLOC_NODE");
   output_exportconf(s, o, "vmalloc_node", "STAPCONF_VMALLOC_NODE");
+
+  // RHBZ1233912 - s390 temporary workaround for non-atomic udelay()
+  output_exportconf(s, o, "udelay_simple", "STAPCONF_UDELAY_SIMPLE");
 
   output_autoconf(s, o, "autoconf-tracepoint-strings.c", "STAPCONF_TRACEPOINT_STRINGS", NULL);
   output_autoconf(s, o, "autoconf-timerfd.c", "STAPCONF_TIMERFD_H", NULL);
