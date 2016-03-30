@@ -1,18 +1,12 @@
 set test "callee"
-
-# The purpose of this testcase is to verify that .callee[s] probes
-# function properly in a variety of situations.
+set testpath "$srcdir/$subdir"
 
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
 if {! [callee_probes_p]} { untested "$test"; return }
 
-# Yse the 'artifacts' directory
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-set testpath "$curdir/$subdir"
+# The purpose of this testcase is to verify that .callee[s] probes
+# function properly in a variety of situations.
 
 # We move on to other subtests if a subtest fails, but within
 # subtests, we fail the whole subtest if a subsubtest fails. Hope that
@@ -89,7 +83,7 @@ proc build_probe { func callee {return_p 0} {call_p 0} } {
 # (defaults to 0). The 'call_p' arg should be 1 if it is a .call
 # probe, otherwise (defaults to 0).
 proc expect_list { func callee expout {return_p 0} {call_p 0} } {
-    global test testpath subtest artifactsdir
+    global test testpath subtest
     
     # Build the stap command
     if {$return_p} {
@@ -105,7 +99,7 @@ proc expect_list { func callee expout {return_p 0} {call_p 0} } {
     set regexp ""
     foreach {expcaller expcallee} $expout {
 	# process(path)
-	set cregexp "^process\\\(\"${artifactsdir}/${test}\"\\\)"
+	set cregexp "^process\\\(\"/\[^\"\]*/testsuite/${test}\"\\\)"
 	# .function(func@/path/callee.subtest
 	append cregexp "\\\.function\\\(\"$expcaller@\[^\"\]*${test}\\\.${subtest}"
 	# fileno:lineno")
@@ -604,6 +598,3 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
     if {[file exists "$libso"]}   { file delete "$libso" }
     if {[file exists "$subtest"]} { file delete "$subtest" }
 }
-
-# Switch back to the original directory
-cd $curdir

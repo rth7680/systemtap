@@ -1,20 +1,22 @@
 set test "buildid"
-set artifactsdir [setup_artifacts_dir]
-set basepath [fullpath $srcdir]
-set bid_stp $basepath/$subdir/buildid.stp
-
-# Work in the artifactsdir
-set curdir [pwd]
-cd $artifactsdir
+set bid_stp $srcdir/$subdir/buildid.stp
 
 if {![installtest_p]} { untested $test; return }
 if {![uprobes_p]} { untested "$test (uprobes)"; return }
+
+proc cleanup_handler { verbose } {
+    if { $verbose == 0 } {
+	catch {exec rm -f bid.hex bid.ko bid_nocheck.ko bid_shared.ko bid.stp buildid1.ro buildid2.ro buildid.c buildid.o buildid.ro buildid.x libbid1.so libbid.so
+	}
+    }
+}
 
 proc error_handler { res message } {
     global verbose
     if { $res == 0 } {
 	verbose $message 2
 	fail $message
+	cleanup_handler $verbose
 	return 1
     } else {
 	pass $message
@@ -24,7 +26,7 @@ proc error_handler { res message } {
 
 # Not Shared
 
-set bid_srcpath $basepath/$subdir/buildid.c
+set bid_srcpath $srcdir/$subdir/buildid.c
 set res [target_compile $bid_srcpath "[pwd]/buildid.o" object "additional_flags=-g"]
 if { [error_handler [expr {$res==""}] "buildid.o"] } { return }
 
@@ -56,6 +58,7 @@ catch {close}; catch {wait}
 
 if {$bid_check_passed == 0} {
     untested "Build IDs do not exist on this system"
+    cleanup_handler $verbose
     return
 }
 
@@ -85,6 +88,7 @@ if {$status == 0 && [file exists $bid_ko]} {
 } else {
     verbose -log $res
     fail "$test (module compilation)"
+    cleanup_handler $verbose
     return
 }
 
@@ -114,6 +118,7 @@ if {$status == 0 && [file exists $bid_exepath]} {
 } else {
     verbose -log $res
     fail "$test (build id removal)"
+    cleanup_handler $verbose
     return
 }
 
@@ -129,7 +134,7 @@ catch {close}; catch {wait}
 if { [error_handler [expr $ok==1] "$test !ok - removed ($ok)"] } { return }
 
 # Alter the build id using objcopy.  Add in an additional build id section.
-set bid_bid $basepath/$subdir/buildid.hex
+set bid_bid $srcdir/$subdir/buildid.hex
 system "objcopy --remove-section=.note.gnu.build-id buildid.ro buildid1.ro"
 system "objcopy --add-section .note.gnu.build-id=$bid_bid buildid1.ro buildid2.ro"
 set res [target_compile "" $bid_exepath executable "additional_flags=buildid2.ro"]
@@ -165,6 +170,7 @@ if {$status == 0 && [file exists $bid_nocheck_ko]} {
 } else {
     verbose -log $res
     fail "$test (module compilation)"
+    cleanup_handler $verbose
     return
 }
 
@@ -208,6 +214,7 @@ if {$status == 0 && [file exists $bid_shared_ko]} {
 } else {
     verbose -log $res
     fail "$test (module compilation)"
+    cleanup_handler $verbose
     return
 }
 
@@ -235,6 +242,7 @@ if {$status == 0 && [file exists libbid.so]} {
 } else {
     verbose -log $res
     fail "$test (build id removal)"
+    cleanup_handler $verbose
     return
 }
 
@@ -257,6 +265,7 @@ if {[file exists libbid.so]} {
 } else {
     verbose -log $res
     fail "$test (build id modified)"
+    cleanup_handler $verbose
     return
 }
 
@@ -271,5 +280,4 @@ expect {
 catch {close}; catch {wait}
 error_handler [expr $ok==1] "$test !ok - modified ($ok)"
 
-# Switch to the original directory
-cd ${curdir}
+cleanup_handler $verbose

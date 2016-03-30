@@ -4,13 +4,9 @@
 #   stapio:open_outfile:75: ERROR: -S is set without -o. Please file a bug report.
 #   ERROR: Couldn't open file for cpu 0, exiting.: Success
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
 
 set test "sigusr2"
-stap_run $curdir/$subdir/$test.stp no_load $all_pass_string -g
+stap_run $srcdir/$subdir/$test.stp no_load $all_pass_string -g
 
 # PR19525: In bulk-mode (-b), close_relayfs() expects SIGUSR2 to cause EINTR on
 # the relay threads, so it can't be SIG_IGN.  But the output is written to
@@ -18,7 +14,5 @@ stap_run $curdir/$subdir/$test.stp no_load $all_pass_string -g
 # Just make sure it doesn't hang, at least.
 
 set result_string {}
-stap_run3 "$test bulk" $curdir/$subdir/$test.stp -g -b -c true
+stap_run3 "$test bulk" $srcdir/$subdir/$test.stp -g -b -c true
 
-# Switch back from the testcase specific working directory
-cd $curdir

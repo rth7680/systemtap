@@ -1,11 +1,11 @@
 set test "plt"
+set script "$srcdir/$subdir/$test.stp"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-set script "$curdir/$subdir/$test.stp"
+proc cleanup_handler { verbose } {
+    if { $verbose == 0 } {
+	catch {exec rm -f libplt1.so libplt2.so plt.x }
+    }
+}
 
 proc error_handler { res test message } {
     global verbose
@@ -55,17 +55,8 @@ widgets 1
 xmalloc 2
 zenme 1}
 
-if {![installtest_p]} {
-    untested $test
-    cd $curdir
-    return
-}
-
-if {![plt_probes_p]} {
-    untested $test
-    cd $curdir
-    return
-}
+if {![installtest_p]} { untested $test; return }
+if {![plt_probes_p]} { untested $test; return }
 
 set exepath "./plt.x"
 
@@ -73,25 +64,16 @@ set exepath "./plt.x"
 set F additional_flags
 set common_flags "$F=-g $F=-Wno-deprecated-declarations $F=-Wno-format $F=-fno-builtin"
 set flags "$F=-I. $F=-shared $F=-fPIC $F=-DLIBPLT1 $common_flags"
-set res [target_compile $curdir/$subdir/plt.c ./libplt1.so executable $flags ]
-if { [error_handler [expr {$res == ""}] "target_compile libplt1.so" ""] } {
-    cd $curdir
-    return
-}
+set res [target_compile $srcdir/$subdir/plt.c ./libplt1.so executable $flags ]
+if { [error_handler [expr {$res == ""}] "target_compile libplt1.so" ""] } { return }
 
 set flags "$F=-I. $F=-shared $F=-fPIC $F=-DLIBPLT2 $common_flags"
-set res [target_compile $curdir/$subdir/plt.c ./libplt2.so executable $flags ]
-if { [error_handler [expr {$res == ""}] "target_compile libplt2.so" ""] } {
-    cd $curdir
-    return
-}
+set res [target_compile $srcdir/$subdir/plt.c ./libplt2.so executable $flags ]
+if { [error_handler [expr {$res == ""}] "target_compile libplt2.so" ""] } { return }
 
 set flags "$F=-Wl,-rpath,[pwd] $F=-L[pwd] $F=-lplt1 $F=-lplt2 $F=-DONLY_MAIN $common_flags"
-set res [target_compile $curdir/$subdir/plt.c $exepath executable $flags ]
-if { [error_handler [expr {$res == ""}] "target_compile plt.x" ""] } {
-    cd $curdir
-    return
-}
+set res [target_compile $srcdir/$subdir/plt.c $exepath executable $flags ]
+if { [error_handler [expr {$res == ""}] "target_compile plt.x" ""] } { return }
 
 # test process.plt
 
@@ -174,5 +156,5 @@ set ::result_string {strcmp 51}
 set pp {process("./libplt2.so").plt("strcmp")}
 stap_run3 "plt glob" "$script" "$pp" "noreturn" -c "$exepath >/dev/null"
 
-# Switch back from the testcase specific working directory
-cd $curdir
+
+cleanup_handler $verbose

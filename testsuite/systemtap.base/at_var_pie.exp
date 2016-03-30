@@ -1,7 +1,6 @@
 set test "at_var_pie"
 set testpath "$srcdir/$subdir"
-set artifactsdir [setup_artifacts_dir]
-set exefile "$artifactsdir/$test"
+set exefile "[pwd]/$test"
 set stap_path $env(SYSTEMTAP_PATH)/stap
 set staprun_path $env(SYSTEMTAP_PATH)/staprun
 
@@ -35,12 +34,12 @@ foreach runtime [get_runtime_list] {
             setup_kfail 15052 "*-*-*"
         }
 
-        stap_run3 "$test ($runtime)" $srcdir/$subdir/at_var_func.stp -c $exefile \
+        stap_run3 "$test ($runtime)" $srcdir/$subdir/at_var_func.stp -c ./$test \
             $exefile "$stap_path:$exefile:$staprun_path" \
             "$stap_path:$staprun_path" --runtime=$runtime
 
     } elseif {[uprobes_p]} {
-        stap_run3 $test $srcdir/$subdir/at_var_func.stp -c $exefile $exefile \
+        stap_run3 $test $srcdir/$subdir/at_var_func.stp -c ./$test $exefile \
             "$stap_path:$exefile:$staprun_path" "$stap_path:$staprun_path"
 
     } else {

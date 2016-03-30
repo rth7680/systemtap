@@ -1,7 +1,6 @@
 set test "at_var_lvalue"
 set testpath "$srcdir/$subdir"
-set artifactsdir [setup_artifacts_dir]
-set exefile "$artifactsdir/$test"
+set exefile "[pwd]/$test"
 
 # Test that @var("var") can be used as an lvalue in guru mode.
 set ::result_string {0: @var("foo")->bar: 41
@@ -12,7 +11,7 @@ set ::result_string {0: @var("foo")->bar: 41
 # Only run on make installcheck and uprobes present.
 if {! [installtest_p]} { untested "$test"; return }
 
-set res [target_compile ${testpath}/${test}.c $exefile executable "additional_flags=-O2 additional_flags=-g"]
+set res [target_compile ${testpath}/${test}.c ${test} executable "additional_flags=-O2 additional_flags=-g"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile ${test}.c"
@@ -20,11 +19,11 @@ if { $res != "" } {
 
 foreach runtime [get_runtime_list] {
     if {$runtime != ""} {
-        stap_run3 "$test ($runtime)" $srcdir/$subdir/$test.stp -c $exefile -g $exefile \
+        stap_run3 "$test ($runtime)" $srcdir/$subdir/$test.stp -c ./${test} -g $exefile \
             --runtime=$runtime
 
     } elseif {[uprobes_p]} {
-        stap_run3 $test $srcdir/$subdir/$test.stp -c $exefile -g $exefile
+        stap_run3 $test $srcdir/$subdir/$test.stp -c ./${test} -g $exefile
 
     } else {
         untested "$test"

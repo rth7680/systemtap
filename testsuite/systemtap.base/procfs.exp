@@ -4,11 +4,6 @@ set test "PROCFS"
 
 if {![installtest_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 proc proc_read_value { test path} {
     set value "<unknown>"
     if [catch {open $path RDONLY} channel] {
@@ -116,5 +111,4 @@ set systemtap_script {
 set output_string "\\mfinal value = goodbye\\M\r\n"
 stap_run $test proc_read_write $output_string -e $systemtap_script -m $test
 
-# Switch back from the testcase specific working directory
-cd $curdir
+exec /bin/rm -f ${test}.ko

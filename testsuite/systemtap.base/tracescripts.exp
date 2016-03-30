@@ -1,8 +1,3 @@
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 set stap_path $env(SYSTEMTAP_PATH)/stap
 
 exec echo "#!$stap_path" > tracescripts.sh
@@ -13,5 +8,4 @@ if {[catch {exec stap -L {process("tracescripts.sh").mark("*")}} res]} {
         pass "tracescripts"
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+catch {exec rm -f tracescripts.sh}

@@ -166,10 +166,10 @@ set valid_options [list \
 
 set ::result_string "$no_error_result"
 
-# Use clean SYSTEMTAP_DIR to avoid propagating issues like PR17301.
-set orig_systemtap_dir $env(SYSTEMTAP_DIR)
-set artifacts_dir [setup_artifacts_dir]
-set env(SYSTEMTAP_DIR) $artifacts_dir
+# avoid propagating issue similar to PR17301
+set origdir $env(SYSTEMTAP_DIR)
+catch {exec mktemp -d} tmpdir
+set env(SYSTEMTAP_DIR) $tmpdir
 
 foreach options $valid_options {
     # Replace the `uname -r` substring, which varies from run to run, with a generic
@@ -194,5 +194,5 @@ foreach options $valid_options {
     }
 }
 
-# Reset SYSTEMTAP_DIR.
-set env(SYSTEMTAP_DIR) $orig_systemtap_dir
+set env(SYSTEMTAP_DIR) $origdir
+catch {exec rm -rf $tmpdir}

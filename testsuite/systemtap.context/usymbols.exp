@@ -1,20 +1,14 @@
 set test "./usymbols"
+set testpath "$srcdir/$subdir"
+set testsrc  "$testpath/usymbols.c"
+set testsrclib  "$testpath/usymbols_lib.c"
+set testlibdir "[pwd]"
+set testflags "additional_flags=-g additional_flags=-O"
 
 # Only run on make installcheck and utrace present.
 if {! [installtest_p]} { untested "$test"; return }
 if {! [utrace_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
-
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-set testpath "$curdir/$subdir"
-set testsrc  "$testpath/usymbols.c"
-set testsrclib  "$testpath/usymbols_lib.c"
-set testlibdir "[pwd]"
-set testflags "additional_flags=-g additional_flags=-O"
 
 # We need the execname() trick to work around (the workaround of)
 # PR6964 otherwise we get also the rt_sigactions of stapio. Get
@@ -119,6 +113,3 @@ handler: lib_handler (.+/lib${testlibname}.so)"
 	exec rm -f $testexe $testso
     }
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir

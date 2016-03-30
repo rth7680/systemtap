@@ -1,11 +1,5 @@
 set test "global_var"
-
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-set testpath "$curdir/$subdir"
+set testpath "$srcdir/$subdir"
 
 # Check each "global" value picks up the right one.
 # See GCC PR51410 and Systemtap PR10622
@@ -25,11 +19,7 @@ compare value@distance: 60
 main return value@main: 42}
 
 # Only run on make installcheck and uprobes present.
-if {! [installtest_p]} {
-  untested "$test"
-  cd $curdir
-  return 
-}
+if {! [installtest_p]} { untested "$test"; return }
 
 proc dyninst_kfails {index} {
   # The dyninst runtime isn't multi-arch, it only works on the
@@ -75,10 +65,10 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
   foreach runtime [get_runtime_list] {
     if {$runtime != ""} {
       if {[info procs ${runtime}_kfails] ne ""} { ${runtime}_kfails $i }
-      stap_run3 $test-$extra_name-$runtime $curdir/$subdir/$test.stp \
+      stap_run3 $test-$extra_name-$runtime $srcdir/$subdir/$test.stp \
 	-c ./${mname}_${extra_name} --runtime=$runtime
     } elseif {[uretprobes_p]} {
-      stap_run3 $test-$extra_name $curdir/$subdir/$test.stp \
+      stap_run3 $test-$extra_name $srcdir/$subdir/$test.stp \
 	-c ./${mname}_${extra_name}
     } else {
       untested "$test-$extra_name"
@@ -93,6 +83,3 @@ if { $verbose == 0 && [llength compiled_objs] > 0 } {
     catch { exec rm -f $obj }
   }
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir

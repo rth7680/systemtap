@@ -1,10 +1,8 @@
 set test "switch_file"
 if {![installtest_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
+# clean existing files
+catch {exec rm -f $test.out*}
 
 # run systemtap
 verbose -log "Running stap -vo $test.out -e {probe begin {switch_file(); exit()}}"
@@ -14,7 +12,6 @@ verbose -log "$res"
 # check output file
 if {[catch {exec rm $test.out}]} {
   fail "$test (no output file)"
-  cd $curdir
   return -1
 } else {
   pass "$test (output file)"
@@ -23,11 +20,7 @@ if {[catch {exec rm $test.out}]} {
 # check switched output file
 if {[catch {exec rm $test.out.1}]} {
   fail "$test (failed to switch output file)"
-  cd $curdir
   return -1
 } else {
   pass "$test (switch output file)"
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir

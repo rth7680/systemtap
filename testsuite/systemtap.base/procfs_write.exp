@@ -4,11 +4,6 @@ set test "PROCFS_WRITE"
 
 if {![installtest_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 proc proc_write_value { test path value} {
     if [catch {open $path WRONLY} channel] {
 	fail "$test $channel"
@@ -137,6 +132,4 @@ set systemtap_write_script {
 # what we're testing.
 stap_run $test proc_write_test $test_string2 -DMAXSTRINGLEN=512 \
     -e $systemtap_write_script -m $test
-
-# Switch back from the testcase specific working directory
-cd $curdir
+exec /bin/rm -f ${test}.ko

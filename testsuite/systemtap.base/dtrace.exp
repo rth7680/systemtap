@@ -1,7 +1,3 @@
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 foreach py {python python2 python3} {
     set test "dtrace $py"
     set python "/usr/bin/$py"
@@ -18,11 +14,15 @@ if {[installtest_p]} {
 }
 
 # Create the test .d files
-set dpath "$curdir/$subdir/dtrace-test.d"
-set ipath "$curdir/$subdir/dtrace-inc-dtest.h"
-set idpath "$curdir/$subdir/dtrace-itest.d"
-set pypath "$curdir/$subdir/dtrace-pypath.d"
-set incpath "$curdir/$subdir"
+set dpath "$srcdir/$subdir/dtrace-test.d"
+set ipath "$srcdir/$subdir/dtrace-inc-dtest.h"
+set idpath "$srcdir/$subdir/dtrace-itest.d"
+set pypath "$srcdir/$subdir/dtrace-pypath.d"
+set incpath "$srcdir/$subdir"
+
+
+# clean up junk output from previous runs
+exec rm -f dtrace-*
 
 # -----------------------------------------------------------------
 # test command line option and file handling 
@@ -34,6 +34,7 @@ if {[file exists dtrace-XXX.o]} then {
 } else {
     fail "$test -G -64 -fPIC -o dtrace-XXX.o"
 }
+exec rm -f dtrace-XXX.o
 
 verbose -log "$dtrace -G -s $dpath -o dtrace-XXX"
 catch {exec $python $dtrace -G -s $dpath -o dtrace-XXX}
@@ -42,6 +43,7 @@ if {[file exists dtrace-XXX]} then {
 } else {
     fail "$test -G -o dtrace-XXX"
 }
+exec rm -f dtrace-XXX
 
 verbose -log "$dtrace -h -s $dpath -o dtrace-XXX.h"
 catch {exec $python $dtrace -h -s $dpath -o dtrace-XXX.h}
@@ -50,6 +52,7 @@ if {[file exists dtrace-XXX.h]} then {
 } else {
     fail "$test -h -o dtrace-XXX.h"
 }
+exec rm -f dtrace-XXX.h
 
 verbose -log "$dtrace -h -s $dpath -o dtrace-XXX"
 catch {exec $python $dtrace -h -s $dpath -o dtrace-XXX}
@@ -58,6 +61,7 @@ if {[file exists dtrace-XXX]} then {
 } else {
     fail "$test -h -o dtrace-XXX"
 }
+exec rm -f dtrace-XXX
 
 verbose -log "$dtrace -G -s $dpath -o /tmp/XXX.o"
 catch {exec $python $dtrace -G -s $dpath -o /tmp/XXX.o}
@@ -66,6 +70,7 @@ if {[file exists /tmp/XXX.o]} then {
 } else {
     fail "$test -G -o /tmp/XXX.o"
 }
+exec rm -f /tmp/XXX.o
 
 verbose -log "$dtrace -G -s $dpath -o /tmp/XXX"
 catch {exec $python $dtrace -G -s $dpath -o /tmp/XXX}
@@ -74,6 +79,7 @@ if {[file exists /tmp/XXX]} then {
 } else {
     fail "$test -G -o /tmp/XXX"
 }
+exec rm -f /tmp/XXX
 
 verbose -log "$dtrace -h -s $dpath -o /tmp/XXX.h"
 catch {exec $python $dtrace -h -s $dpath -o /tmp/XXX.h}
@@ -82,6 +88,7 @@ if {[file exists /tmp/XXX.h]} then {
 } else {
     fail "$test -h -o /tmp/XXX.h"
 }
+exec rm -f /tmp/XXX.h
 
 verbose -log "$dtrace -h -s $dpath -o /tmp/XXX"
 catch {exec $python $dtrace -h -s $dpath -o /tmp/XXX}
@@ -90,6 +97,7 @@ if {[file exists /tmp/XXX]} then {
 } else {
     fail "$test -h -o /tmp/XXX"
 }
+exec rm -f /tmp/XXX
 
 verbose -log "$dtrace -G -s $dpath"
 catch {exec $python $dtrace -G -s $dpath}
@@ -98,6 +106,7 @@ if {[file exists dtrace-test.o]} then {
 } else {
     fail "$test -G"
 }
+exec rm -f test.o
 
 verbose -log "$dtrace -h -s $dpath"
 catch {exec $python $dtrace -h -s $dpath}
@@ -106,6 +115,7 @@ if {[file exists dtrace-test.h]} then {
 } else {
     fail "$test -h"
 }
+exec rm -f test.o
 
 set ok 0
 verbose -log "CFLAGS=\"MYCFLAGS\" CC=echo $dtrace -G -s $dpath"
@@ -136,6 +146,7 @@ if { $ok != 0} {
 } else {
     fail "$test -C -h -o dtrace-XXX.h"
 }
+exec rm -f dtrace-XXX.h
 
 set ok 0
 verbose -log "$dtrace -C -I$incpath -h -s $idpath -o XXX.h"
@@ -153,6 +164,7 @@ if { $ok == 4} {
 } else {
     fail "$test -C -Iincpath -h -o dtrace-XXX.h $ok"
 }
+exec rm -f dtrace-XXX.h
 
 # -----------------------------------------------------------------
 # test --no-pyparsing
@@ -173,6 +185,7 @@ if { $ok == 4} {
 } else {
     fail "$test -C --no-pyparsing -Iincpath -h -o dtrace-XXX.h $ok"
 }
+exec rm -f dtrace-XXX.h
 
 # -----------------------------------------------------------------
 # test fallback to --no-pyparsing
@@ -197,6 +210,7 @@ if {[catch {exec $python -c "import pyparsing"} res]} then {
     } else {
         fail "$test parser check $ok"
     }
+    exec rm -f dtrace-XXX.h
 }
 # -----------------------------------------------------------------
 # test -G object file creation
@@ -208,6 +222,7 @@ if {[file exists dtrace-test.o]} then {
 } else {
     fail "$test -Iincpath -G"
 }
+exec rm -f test.o
 
 # -----------------------------------------------------------------
 # test dtrace for pyparsing / --no-pyparsing compatibility
@@ -215,17 +230,17 @@ if {[file exists dtrace-test.o]} then {
 set ok 0
 set dfiles {dtrace}
 foreach i $dfiles {
-    verbose -log "$dtrace $curdir/$subdir/$i.d"
-    catch {exec $python $dtrace -C -h -s $curdir/$subdir/$i.d -o $i-1.h}
-    catch {exec $python $dtrace -C -h --no-pyparsing -s $curdir/$subdir/$i.d -o $i-2.h}
+    verbose -log "$dtrace $srcdir/$subdir/$i.d"
+    catch {exec $python $dtrace -C -h -s $srcdir/$subdir/$i.d -o $i-1.h}
+    catch {exec $python $dtrace -C -h --no-pyparsing -s $srcdir/$subdir/$i.d -o $i-2.h}
     spawn diff -wqs $i-1.h $i-2.h
     expect {
 	-re {Files.*identical} {incr ok; exp_continue}
 	eof { }
     }
     catch {close}; catch {wait}
-    catch {exec $python $dtrace -C -G -s $curdir/$subdir/$i.d -o $i-1.o}
-    catch {exec $python $dtrace -C -G --no-pyparsing -s $curdir/$subdir/$i.d -o $i-2.o}
+    catch {exec $python $dtrace -C -G -s $srcdir/$subdir/$i.d -o $i-1.o}
+    catch {exec $python $dtrace -C -G --no-pyparsing -s $srcdir/$subdir/$i.d -o $i-2.o}
     verbose -log "exec nm $i-1.o > $i-1.od"
     catch {exec nm $i-1.o > $i-1.od}
     catch {exec nm $i-2.o > $i-2.od}
@@ -235,6 +250,7 @@ foreach i $dfiles {
 	eof { }
     }
     catch {close}; catch {wait}
+    catch {exec /bin/rm $i-1.h $i-2.h $i-1.o $i-2.o}
 }
 if { $ok == 2} {
     pass "$test known uses"
@@ -250,11 +266,10 @@ if {[file exists dtrace-test.h]} then {
 } else {
     fail "$test -x IGNORED"
 }
+exec rm -f test.o
 
 
 # -----------------------------------------------------------------
 
 }
 # iteration over python*
-
-cd $curdir

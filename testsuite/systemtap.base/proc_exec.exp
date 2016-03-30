@@ -1,10 +1,5 @@
 # process exec tests.
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # value gets set later
 set test_exepath ""
 
@@ -30,7 +25,6 @@ proc run_test_exe {} {
 set exepath "[pwd]/sleep_[pid]"
 if {[catch {exec cp /bin/sleep $exepath} res]} {
     fail "unable to copy /bin/sleep: $res"
-    cd $curdir
     return
 }
 
@@ -75,7 +69,7 @@ set test_script {
 # Test a normal fork/exec pair.
 #
 
-set fork_exec_srcpath "$curdir/systemtap.base/proc_fork_exec.c"
+set fork_exec_srcpath "$srcdir/systemtap.base/proc_fork_exec.c"
 set fork_exec_exepath "[pwd]/proc_fork_exec_[pid]"
 set fork_exec_flags ""
 
@@ -99,7 +93,6 @@ set res [target_compile $fork_exec_srcpath $fork_exec_exepath executable $fork_e
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $fork_exec_srcpath"
-    cd $curdir
     return
 }
 
@@ -118,7 +111,7 @@ if {![utrace_p]} {
 # Test a straight exec (no fork).
 #
 
-set exec_srcpath "$curdir/systemtap.base/proc_exec.c"
+set exec_srcpath "$srcdir/systemtap.base/proc_exec.c"
 set exec_exepath "[pwd]/proc_exec_[pid]"
 set exec_flags ""
 
@@ -137,7 +130,6 @@ set res [target_compile $exec_srcpath $exec_exepath executable $exec_flags]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $exec_srcpath"
-    cd $curdir
     return
 }
 
@@ -157,7 +149,7 @@ if {![utrace_p]} {
 # but...
 #
 
-set thread_exec_srcpath "$curdir/systemtap.base/proc_thread_exec.c"
+set thread_exec_srcpath "$srcdir/systemtap.base/proc_thread_exec.c"
 set thread_exec_exepath "[pwd]/proc_thread_exec_[pid]"
 set thread_exec_flags "libs=-lpthread"
 
@@ -184,7 +176,6 @@ set res [target_compile $thread_exec_srcpath $thread_exec_exepath executable $th
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $exec_srcpath"
-    cd $curdir
     return
 }
 
@@ -198,5 +189,5 @@ if {![utrace_p]} {
     stap_run $TEST_NAME run_test_exe $thread_exec_script_output -e $script
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+# Cleanup
+exec rm -f $exepath $fork_exec_exepath $exec_exepath $thread_exec_exepath

@@ -3,16 +3,11 @@
 
 set test "uprobe_stmt_num"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # Only run on make installcheck and uprobes present.
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
 
-set testpath  "$curdir/$subdir"
+set testpath  "$srcdir/$subdir"
 set testsrc   "$testpath/$test.c"
 set testexe   "[pwd]/$test"
 # We want debug info and no optimization (every line counts).
@@ -23,7 +18,6 @@ set res [target_compile $testsrc $testexe executable $testflags]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $testsrc"
-    cd $curdir
     return
 }
 
@@ -87,5 +81,5 @@ eval exec $strip_cmd
 
 stap_run3 $test-run-statements-nodebuginfo -w -g $test-run-statements.stp -c $testexe
 
-# Switch back from the testcase specific working directory
-cd $curdir
+# cleanup
+eval exec rm $testexe $test-run-statements.stp

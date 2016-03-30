@@ -3,26 +3,25 @@ set test "perf"
 if {! [installtest_p]} { untested "$test"; return }
 if {! [perf_probes_p]} { untested "$test"; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
+proc cleanup_handler { verbose } {
+    catch {exec rm -f towers.x}
+}
 
 set stap_path $env(SYSTEMTAP_PATH)/stap
 set exepath "[pwd]/towers.x"
 set subtest "process()"
 
-set res [target_compile $curdir/$subdir/towers.c $exepath executable ""]
+set res [target_compile $srcdir/$subdir/towers.c $exepath executable ""]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "$test compiling towers.c"
-    cd $curdir
+    cleanup_handler $verbose
     return
 } else {
     pass "$test compiling towers.c"
 }
 
-spawn $stap_path $curdir/$subdir/perf01.stp $exepath -c $exepath
+spawn $stap_path $srcdir/$subdir/perf01.stp $exepath -c $exepath
 
 # there is no "XXX" process so this probe should have been ignored
 set ok 0
@@ -43,7 +42,7 @@ if {$ok == 2} {
 
 set subtest "process"
 
-spawn $stap_path $curdir/$subdir/perf02.stp -c $exepath
+spawn $stap_path $srcdir/$subdir/perf02.stp -c $exepath
 
 set ok 0
 expect {
@@ -62,12 +61,12 @@ if {$ok == 1} {
 
 set subtest "counter"
 
-target_compile $curdir/$subdir/towers.c $exepath executable "additional_flags=-g"
+target_compile $srcdir/$subdir/towers.c $exepath executable "additional_flags=-g"
 
 if {! [uprobes_p]} {
     untested "$test $subtest"
 } else {
-    spawn $stap_path $curdir/$subdir/perf03.stp $exepath -c $exepath
+    spawn $stap_path $srcdir/$subdir/perf03.stp $exepath -c $exepath
 
     set ok 0
     expect {
@@ -87,7 +86,7 @@ if {! [uprobes_p]} {
     }
     catch {close}; catch {wait}
 
-    spawn $stap_path $curdir/$subdir/perf04.stp $exepath -c $exepath
+    spawn $stap_path $srcdir/$subdir/perf04.stp $exepath -c $exepath
 
     expect {
 	-timeout 180
@@ -106,7 +105,7 @@ if {! [uprobes_p]} {
 
 set subtest "global"
 
-spawn $stap_path $curdir/$subdir/perf05.stp
+spawn $stap_path $srcdir/$subdir/perf05.stp
 
 set ok 0
 expect {
@@ -125,7 +124,7 @@ if {$ok == 1} {
 
 set subtest "counter order"
 
-spawn $curdir/$subdir/perf.sh $stap_path
+spawn $srcdir/$subdir/perf.sh $stap_path
 
 expect {
     -timeout 180
@@ -140,5 +139,4 @@ expect {
 }
 catch {close}; catch {wait}
 
-# Switch back from the testcase specific working directory
-cd $curdir
+cleanup_handler $verbose

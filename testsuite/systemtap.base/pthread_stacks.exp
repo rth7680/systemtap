@@ -3,18 +3,12 @@ set test "pthread_stacks"
 if {![installtest_p]} { untested $test; return }
 if {![uprobes_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 set exepath "[pwd]/pthread_stacks.x"
 set flags "additional_flags=-pthread additional_flags=-g"
 
-set res [target_compile $curdir/$subdir/pthread_stacks.c $exepath executable $flags]
+set res [target_compile $srcdir/$subdir/pthread_stacks.c $exepath executable $flags]
 if { $res != "" } {
     fail "$test compiling"
-    cd $curdir
     return
 } else {
     pass "$test compiling"
@@ -34,7 +28,7 @@ if {[string match ppc* $::tcl_platform(machine)]} {
 # only need the "native" glibc debuginfo installed for this test,
 # since we're only compiling for the "native" arch.
 set test "pthread_stacks debuginfo check"
-spawn stap -gp4 $curdir/systemtap.examples/process/threadstacks.stp \
+spawn stap -gp4 $srcdir/systemtap.examples/process/threadstacks.stp \
     -Gsize=${new_stack_size} -d $exepath
 set compile_errors 0
 expect {
@@ -53,13 +47,12 @@ if { $res != 0 || $compile_errors > 0 } {
     fail $test
     untested "pthread_stacks"
     catch {exec rm -f $exepath}
-    cd $curdir
     return
 }
 pass $test
 
 set test "pthread_stacks no -Gsize"
-spawn stap -w -g $curdir/systemtap.examples/process/threadstacks.stp -c "$exepath 1024 0" -d $exepath
+spawn stap -w -g $srcdir/systemtap.examples/process/threadstacks.stp -c "$exepath 1024 0" -d $exepath
 set ok 0
 set ko 0
 expect {
@@ -74,7 +67,7 @@ if { $ok == 1 } then { pass $test } else { fail "$test ($ok $ko)" }
 
 
 set test "pthread_stacks -Gsize"
-spawn stap -g $curdir/systemtap.examples/process/threadstacks.stp -Gsize=${new_stack_size} -c "$exepath 1024 0" -d $exepath
+spawn stap -g $srcdir/systemtap.examples/process/threadstacks.stp -Gsize=${new_stack_size} -c "$exepath 1024 0" -d $exepath
 set ok 0
 set ko 0
 expect {
@@ -88,5 +81,4 @@ catch { close }
 catch { wait }
 if { $ok == 2 } then { pass $test } else { fail "$test ($ok $ko)" }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+catch {exec rm -f $exepath}

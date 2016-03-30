@@ -3,13 +3,9 @@ set test "gtod"
 if {![installtest_p]} { untested $test; continue }
 
 set wd [pwd]
-set filename "$wd/$subdir/gtod.c"
+set filename "$srcdir/$subdir/gtod.c"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-cd $artifactsdir
-
-target_compile $filename $artifactsdir/gtod executable ""
+target_compile $filename $wd/gtod executable ""
 
 # Return the absolute difference between num1 and num2
 proc abs_diff { num1 num2 } {
@@ -38,16 +34,16 @@ for {set i 0} { $i < 3 } {incr i } {
     if {$i == 0} {
 	# non interval (check timer drift in short range)
 	set test "gtod (short range)"
-	spawn $wd/$subdir/gtod.sh $wd/$subdir/gtod.stp $wd/gtod
+	spawn $srcdir/$subdir/gtod.sh $srcdir/$subdir/gtod.stp $wd/gtod
     } elseif {$i == 1} {
 	# 10ms interval (check timer drift in middle range)
 	set test "gtod (10ms interval)"
-	spawn $wd/$subdir/gtod.sh $wd/$subdir/gtod.stp $wd/gtod 10000
+	spawn $srcdir/$subdir/gtod.sh $srcdir/$subdir/gtod.stp $wd/gtod 10000
     } else {
 	# 100ms interval (calm down processors and CPU freq might be
 	# changed)
 	set test "gtod (100ms interval)"
-	spawn $wd/$subdir/gtod.sh $wd/$subdir/gtod.stp $wd/gtod 100000
+	spawn $srcdir/$subdir/gtod.sh $srcdir/$subdir/gtod.stp $wd/gtod 100000
     }
 
     # 'ok' is the number of passes
@@ -108,7 +104,6 @@ for {set i 0} { $i < 3 } {incr i } {
     if {$ok == 100} { pass "$test ($ok)" } { fail "$test ($ok)" }
 }
 
-# Switch back from the testcase specific working directory
-cd $wd
+exec rm -f $wd/gtod
 
 

@@ -6,19 +6,13 @@ set testname usymfileline
 
 if {![installtest_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # compile the c++ program
 set compile_flags "additional_flags=-g compiler=g++"
-set compile_result [target_compile $curdir/$subdir/$testname.cxx ./$testname executable $compile_flags]
+set compile_result [target_compile $srcdir/$subdir/$testname.cxx ./$testname executable $compile_flags]
 if {$compile_result != ""} {
     verbose -log "target_compile failed: $compile_result" 2
     fail "$testname - unable to compile, $compile_result"
     untested "$testname"
-    cd $curdir
     return
 } else {
     pass "$testname - compiled successfully"
@@ -81,5 +75,4 @@ foreach test $tests {
   stap_run "$test (no debug_line)" no_load "0x\[0-9,a-f]*\r\n" -e $testscript uaddr() -c ./usymfileline 
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+exec rm -f ./$testname

@@ -1,10 +1,5 @@
 set test "stmt_rel_user"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 proc dyninst_kfails {index} {
     # The dyninst runtime isn't multi-arch, it only works on the
     # native architecture. PR14490.
@@ -22,7 +17,7 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
     set rel_flags "$rel_flags additional_flags=-Winline"
     set rel_flags "$rel_flags additional_flags=-g"
     set rel_flags "$rel_flags $extra_flag"
-    set res [target_compile $curdir/$subdir/$test.c [pwd]/$test.x executable $rel_flags]
+    set res [target_compile $srcdir/$subdir/$test.c [pwd]/$test.x executable $rel_flags]
     if { $res != "" } {
 	verbose "target_compile failed: $res" 2
 	fail "$test-$extra_name compiling"
@@ -32,11 +27,7 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
 	pass "$test-$extra_name compiling"
     }
     
-    if {![installtest_p]} {
-        untested "$test-$extra_name"
-        cd $curdir
-        return
-    }
+    if {![installtest_p]} { untested "$test-$extra_name"; return }
     
     foreach runtime [get_runtime_list] {
 	if {$runtime != ""} {
@@ -75,6 +66,3 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
 	}
     }
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir

@@ -1,19 +1,14 @@
-set test "uprobe_uaddr_mark"
-
 # Tests that uaddr matches the statement address of an SDT mark,
 # to show whether we're getting REG_IP munging right.
+
+set test "uprobe_uaddr_mark"
+set ::result_string {success}
 
 # Only run on make installcheck and uprobes present.
 if {! [installtest_p]} { untested "$test"; return }
 if {! [uprobes_p]} { untested "$test"; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-set ::result_string {success}
-set testpath  "$curdir/$subdir"
+set testpath  "$srcdir/$subdir"
 set testsrc   "$testpath/$test.c"
 set testexe   "[pwd]/$test"
 set testflags [sdt_includes]
@@ -23,11 +18,9 @@ set res [target_compile $testsrc $testexe executable $testflags]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "unable to compile $testsrc"
-    cd $curdir
     return
 }
 
 stap_run3 $test $teststp -c $testexe
 
-# Switch back from the testcase specific working directory
-cd $curdir
+catch {exec rm -f $test.exe}

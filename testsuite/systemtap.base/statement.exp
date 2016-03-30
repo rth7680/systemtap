@@ -1,12 +1,7 @@
 set test "statement"
 if {![utrace_p]} { untested "$test"; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
-catch {exec gcc -g -o $test $curdir/$subdir/$test.c} err
+catch {exec gcc -g -o $test $srcdir/$subdir/$test.c} err
 if {$err == "" && [file exists $test]} {
    pass "$test compile"
 } else {
@@ -176,5 +171,4 @@ expect_probes * 5-6,7-13 6
 set subtest "ENUMERATED - wildcard func overlapping 3"
 expect_probes * 5,6,7,8,9,10,11,12,13 6
 
-# Switch back from the testcase specific working directory
-cd $curdir
+if {[file exists "$test"]}   { file delete "$test" }

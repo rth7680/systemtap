@@ -1,8 +1,3 @@
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # We've got 3 main tests:
 # (1) uprobes_call, which probes function entry
 # (2) uprobes_return, which probes function exit
@@ -15,7 +10,7 @@ set test_array(uprobes_return) 5
 set test_array(uprobes) 10
 
 set test uprobes
-catch {exec gcc -g -o jennie $curdir/$subdir/jennie.c} err
+catch {exec gcc -g -o jennie $srcdir/$subdir/jennie.c} err
 if {$err == "" && [file exists jennie]} then {
     pass "$test compile"
 } else {
@@ -28,7 +23,7 @@ foreach test [lsort [array names test_array]] {
 	set test_xtra ""
 	if {$runtime != ""} {
 	    set test_xtra " ($runtime)"
-	    set rc [stap_run_batch $curdir/$subdir/${test}.stp \
+	    set rc [stap_run_batch $srcdir/$subdir/${test}.stp \
 			--runtime=$runtime]
 	} else {
 	    if {! [uprobes_p]} {
@@ -37,7 +32,7 @@ foreach test [lsort [array names test_array]] {
 		}
 		continue
 	    }
-	    set rc [stap_run_batch $curdir/$subdir/${test}.stp]
+	    set rc [stap_run_batch $srcdir/$subdir/${test}.stp]
 	}
 	if {$rc == 0} then {
 	    pass "$test -p4${test_xtra}"
@@ -56,10 +51,10 @@ foreach test [lsort [array names test_array]] {
 
 	# Try to run the script
 	if {$runtime != ""} {
-	    spawn stap $curdir/$subdir/${test}.stp --runtime=$runtime \
+	    spawn stap $srcdir/$subdir/${test}.stp --runtime=$runtime \
 		-w -c "./jennie 1 2 3 4"
 	} else {
-	    spawn stap $curdir/$subdir/${test}.stp -w -c "./jennie 1 2 3 4"
+	    spawn stap $srcdir/$subdir/${test}.stp -w -c "./jennie 1 2 3 4"
 	}
 	set ok 0
 	expect {
@@ -76,5 +71,4 @@ foreach test [lsort [array names test_array]] {
     }
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+catch {exec rm -f jennie}

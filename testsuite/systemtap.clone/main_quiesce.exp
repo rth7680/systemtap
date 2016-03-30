@@ -4,22 +4,16 @@ if {! [installtest_p]} {
     return
 }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # This test makes sure we don't miss events when the main thread
 # doesn't quiesce (without us interrupting it).
 
 # Compile our threaded test program.
-set srcpath "$curdir/$subdir/${test}.c"
+set srcpath "$srcdir/$subdir/${test}.c"
 set exepath "./${test}_exe"
 set res [target_compile $srcpath $exepath executable "additional_flags=-g libs=-lpthread"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "$test - unable to compile [file tail $srcpath]"
-    cd $curdir
     return
 } else {
     pass "$test - compiled [file tail $srcpath]"
@@ -69,6 +63,4 @@ foreach runtime [get_runtime_list] {
     catch {close -i $exe_id}
     catch {wait -i $exe_id}
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir
+exec rm -f $test

@@ -4,11 +4,9 @@ binary sa_data OK
 header sa_family OK
 header sa_data OK}
 
-set artifactsdir [setup_artifacts_dir]
-
 set srcfile "$srcdir/$subdir/$test.c"
 set stpfile "$srcdir/$subdir/$test.stp"
-set exefile "$artifactsdir/$test.exe"
+set exefile "[pwd]/$test.exe"
 set test_flags "additional_flags=-g"
 set res [target_compile "$srcfile" "$exefile" executable "$test_flags"]
 if { $res != "" } {

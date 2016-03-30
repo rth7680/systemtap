@@ -1,10 +1,6 @@
 set test "flightrec1"
 if {![installtest_p]} { untested $test; return }
 
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # Make sure we start with a clean slate.
 catch {exec rm -f $test.out*}
 
@@ -24,7 +20,6 @@ expect {
 wait; catch {close}
 if {$pid == 0} {
   fail "$test (no pid)"
-  cd $curdir
   return -1
 }
 
@@ -46,7 +41,6 @@ exec kill -USR2 $pid
 exec sleep 2
 if {[catch {exec rm $test.out}]} {
   fail "$test (no output file)"
-  cd $curdir
   return -1
 } else {
   pass "$test (output file)"
@@ -57,10 +51,8 @@ exec kill -TERM $pid
 # check switched output file
 if {[catch {exec rm $test.out.1}]} {
   fail "$test (failed to switch output file)"
-  cd $curdir
   return -1
 } else {
   pass "$test (switch output file)"
 }
 
-cd $curdir

@@ -3,20 +3,15 @@
 set test "hash_add_buildid"
 if {![uprobes_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # Since we need a clean cache directory, we'll use a temporary
 # systemtap directory and cache (add user name so make check and
 # sudo make installcheck don't clobber each others)
 set exe hash_add_buildid
 set at_least_one_run 0
 set passed 0
-set local_systemtap_dir $artifactsdir/.cache_test-[exec whoami]
-catch {exec /bin/rm -rf $local_systemtap_dir}
-catch {exec /bin/mkdir $local_systemtap_dir}
+set local_systemtap_dir [exec pwd]/.cache_test-[exec whoami]
+exec /bin/rm -rf $local_systemtap_dir
+exec /bin/mkdir $local_systemtap_dir
 if [info exists env(SYSTEMTAP_DIR)] {
     set old_systemtap_dir $env(SYSTEMTAP_DIR)
 }
@@ -40,7 +35,7 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
 
   # Compile hash_add_buildid1.c and change the timestamp
   # of the binary
-  exec cp $curdir/$subdir/hash_add_buildid1.c $local_systemtap_dir/hash_add_buildid.c
+  exec cp $srcdir/$subdir/hash_add_buildid1.c $local_systemtap_dir/hash_add_buildid.c
   set res [target_compile $local_systemtap_dir/hash_add_buildid.c $exe executable "$test_flags"]
   if { $res != "" } {
     continue
@@ -78,7 +73,7 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
 
   # Recompile the test binary using hash_add_buildid2.c
   # and change the timestamp to the same as the previous one.
-  exec cp $curdir/$subdir/hash_add_buildid2.c $local_systemtap_dir/hash_add_buildid.c
+  exec cp $srcdir/$subdir/hash_add_buildid2.c $local_systemtap_dir/hash_add_buildid.c
   set res [target_compile $local_systemtap_dir/hash_add_buildid.c $exe executable "$test_flags"]
   if { $res != "" } {
     continue
@@ -107,6 +102,10 @@ if {$passed == 0} {
 }
 
 # Cleanup.
-set env(SYSTEMTAP_DIR) $old_systemtap_dir
-cd $curdir
+exec /bin/rm -rf $local_systemtap_dir
+if [info exists old_systemtap_dir] {
+    set env(SYSTEMTAP_DIR) $old_systemtap_dir
+} else {
+    unset env(SYSTEMTAP_DIR)
+}
 

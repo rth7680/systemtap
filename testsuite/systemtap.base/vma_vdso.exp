@@ -3,11 +3,6 @@
 
 set test "vma_vdso"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # Expect the following three syscalls
 set ::result_string {clock_gettime
 getuid
@@ -26,12 +21,11 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
         set test_flags "$test_flags $arch_flag"
     }
 
-    set res [target_compile $curdir/$subdir/$test.c ${test_arch}.exe executable "$test_flags"]
+    set res [target_compile $srcdir/$subdir/$test.c ${test_arch}.exe executable "$test_flags"]
     if { $res != "" } {
         verbose "target_compile ${test_arch} failed: $res" 2
         fail "${test}.c compile -${arch_name}"
         untested "${test_arch}"
-        cd $curdir
         return
     } else {
         pass "${test}.c compile -${arch_name}"
@@ -39,11 +33,8 @@ for {set i 0} {$i < [arch_compile_flags]} {incr i} {
 
     # Test only when we are running an install test (can execute)
     if {[installtest_p]} {
-        stap_run3 ${test_arch} $curdir/$subdir/$test.stp ./${test_arch}.exe -c ./${test_arch}.exe
+        stap_run3 ${test_arch} $srcdir/$subdir/$test.stp ./${test_arch}.exe -c ./${test_arch}.exe
     } else {
         untested "${test_arch}"
     }
 }
-
-# Switch back from the testcase specific working directory
-cd $curdir

@@ -1,6 +1,4 @@
 set test "at_var_void_stmt"
-set artifactsdir [setup_artifacts_dir]
-set executable "$artifactsdir/$test"
 set testpath "$srcdir/$subdir"
 
 # Check the void statement reducer with @var.
@@ -9,7 +7,7 @@ set output_string ".*?enter func sub\r\n"
 # Only run on make installcheck and uprobes present.
 if {! [installtest_p]} { untested "$test"; return }
 
-set res [target_compile ${testpath}/$test.c $executable executable \
+set res [target_compile ${testpath}/$test.c $test executable \
     "additional_flags=-O2 additional_flags=-g"]
 
 if { $res != "" } {
@@ -17,7 +15,7 @@ if { $res != "" } {
     fail "unable to compile ${test}.c"
 }
 
-spawn stap --vp 03 $srcdir/$subdir/$test.stp -c $executable $test
+spawn stap --vp 03 $srcdir/$subdir/$test.stp -c ./$test $test
 set ok 0
 set logs 0
 

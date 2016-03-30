@@ -12,11 +12,6 @@ set test "process_resume"
 if {![installtest_p]} { untested "$test"; return }
 if {![utrace_p]} { untested "$test : no kernel utrace support found"; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # "load" generation function for stap_run.  It waits a bit, tells the
 # test program to continue and then waits a bit.
 proc resume_load {} {
@@ -48,12 +43,11 @@ set end_script {
 set end_script_output "end probes = 1\r\n"
 
 # Compile test program.
-set res [target_compile $curdir/$subdir/${test}.c ${test} executable \
+set res [target_compile $srcdir/$subdir/${test}.c ${test} executable \
     "additional_flags=-O2 additional_flags=-g"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     fail "${test}: unable to compile ${test}.c"
-    cd $curdir
     return
 }
 
@@ -84,5 +78,5 @@ if {[file isdirectory /proc/$pid]} {
     pass "$TEST_NAME: process resumed properly"
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+# Cleanup
+if { $verbose == 0 } { catch { exec rm -f $test } }

@@ -1,14 +1,5 @@
 set test "sdt_global_var"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-if {[catch {eval exec ln -s $curdir/sys $artifactsdir}]} {
-    fail "test (symlink sys)"
-    exit 1
-}
-cd $artifactsdir
-
 # Test accessing global variables in SDT probes.
 set result_string10 "z: @(\"my_global_var\") = 56
 z: \$my_global_var = 56
@@ -87,7 +78,7 @@ set test_flags "$test_flags additional_flags=-Werror $pbtype_flag"
 
 set saveidx 0
 
-set res [target_compile $curdir/$subdir/sdt.c $testprog executable "$test_flags $extra_flag"]
+set res [target_compile $srcdir/$subdir/sdt.c $testprog executable "$test_flags $extra_flag"]
 if { $res != "" } {
     verbose "target_compile failed: $res" 2
     if {[string first "unrecognized command line option" $res] == -1} {
@@ -115,14 +106,13 @@ if {[installtest_p]} {
 	append ::result_string $result_string12
     }
     sdt_stap_run "$test $extra_mssg $pbtype_mssg $extra_flag" \
-	-w $FAIL $curdir/$subdir/$test.stp $testprog -c ./$testprog
+	-w $FAIL $srcdir/$subdir/$test.stp $testprog -c ./$testprog
 } else {
     untested "$test $extra_mssg $pbtype_mssg"
 }
+catch {exec rm -f $testprog}
 
 } ; # for {set i 0} {$i < [llength $extra_flags]}
 
 } ; # for {set i 0} {$i < [llength $pbtype_flags]}
 
-# Switch back from the testcase specific working directory
-cd $curdir

@@ -3,11 +3,6 @@
 set test "PROCFS_BUFFER"
 if {![installtest_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 proc proc_read_value { test path} {
     set value "<unknown>"
     if [catch {open $path RDONLY} channel] {
@@ -348,6 +343,4 @@ exec /bin/rm -f ${test}.ko
 # Buffer is exactly large enough to hold contents
 set test "PROCFS_BUFFER9"
 stap_run $test proc_read_write_46 "\r\n" -DSTP_PROCFS_BUFSIZE=46 -e $script5 -m $test
-
-# Switch back from the testcase specific working directory
-cd $curdir
+exec /bin/rm -f ${test}.ko

@@ -1,10 +1,4 @@
 set test "implicitptr"
-
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 set ::result_string {foo: 22 22 22 22
 changed foo (99): 99 99 99 99
 p = { { &100, 200 }, { &100, 200 } }
@@ -40,7 +34,7 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
   set test_flags "additional_flags=-g $extra_flag"
   set test_flags "$test_flags [sdt_includes]"
 
-  set res [target_compile $curdir/$subdir/$test.c $test.exe executable "$test_flags"]
+  set res [target_compile $srcdir/$subdir/$test.c $test.exe executable "$test_flags"]
   if {$res != ""} {
     verbose -log "target_compile failed: $res" 2
     fail "$test.c compile $extra_name"
@@ -74,7 +68,7 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
 
   if {$avail} {
     if {[installtest_p] && [uprobes_p]} {
-      stap_run3 "$test-$extra_name" $curdir/$subdir/$test.stp \
+      stap_run3 "$test-$extra_name" $srcdir/$subdir/$test.stp \
 	  -g -c ./$test.exe $test.exe
     } else {
       untested "$test-$extra_name"
@@ -86,7 +80,6 @@ for {set i 0} {$i < [all_compile_flags]} {incr i} {
     verbose -log "$test-$extra_name did not use implicit_ptr, skipping"
     untested "$test-$extra_name"
   }
-}
 
-# Switch back from the testcase specific working directory
-cd $curdir
+  catch {exec rm -f $test.exe}
+}

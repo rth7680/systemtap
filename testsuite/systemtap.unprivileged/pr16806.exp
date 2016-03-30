@@ -3,17 +3,19 @@ set test "pr16806"
 if {![installtest_p]} { untested $test; return }
 if {![uprobes_p]} { untested $test; return }
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 set exepath "loop"
 set sopath "libloop.so"
 set modpath "modloop"
 
 # This testcase verifies that utrace shuts down cleanly during rapid module
 # insertion/removal and does not cause a kernel crash.
+
+proc cleanup_test {} {
+   global exepath sopath modpath
+   if {[file exists "$exepath"]}  { file delete "$exepath" }
+   if {[file exists "$sopath"]}   { file delete "$sopath" }
+   if {[file exists "$modpath.ko"]} { file delete "$modpath.ko" }
+}
 
 # Need to build a user shared library.
 set libflags [sdt_includes]
@@ -24,12 +26,12 @@ set libflags "$libflags additional_flags=-Werror"
 set libflags "$libflags additional_flags=-I."
 set libflags "$libflags additional_flags=-shared"
 set libflags "$libflags additional_flags=-fPIC"
-set res [target_compile $curdir/$subdir/libloop.c $sopath executable "$libflags"]
+set res [target_compile $srcdir/$subdir/libloop.c $sopath executable "$libflags"]
 if { $res == "" } {
    pass "$test library compile"
 } else {
    fail "$test library compile: $res"
-   cd $curdir
+   cleanup_test
    return
 }
 
@@ -48,12 +50,12 @@ set exeflags "$exeflags compiler=gcc"
 if {[regexp "^(x86_64|i.86)$" $::tcl_platform(machine)] == 0} {
    set exeflags "$exeflags additional_flags=-DSTAP_SDT_ARG_CONSTRAINT=nr"
 }
-set res [target_compile $curdir/$subdir/loop.c $exepath executable "$exeflags"]
+set res [target_compile $srcdir/$subdir/loop.c $exepath executable "$exeflags"]
 if { $res == "" } {
    pass "$test exe compile"
 } else {
    fail "$test exe compile: $res"
-   cd $curdir
+   cleanup_test
    return
 }
 
@@ -74,7 +76,7 @@ if {$rc == 0 && [file exists "$modpath.ko"]} {
 } else {
    fail "$test ko compile"
    verbose -log "stap output: $out"
-   cd $curdir
+   cleanup_test
    return
 }
 
@@ -86,12 +88,11 @@ while {[expr [exec date +%s] < $max]} {
    if {![regexp "entered ibar" "$out"]} {
       fail "$test staprun"
       verbose -log "staprun output: $out"
-      cd $curdir
+      cleanup_test
       return
    }
 }
 
+cleanup_test
 pass "$test"
 
-# Switch back from the testcase specific working directory
-cd $curdir

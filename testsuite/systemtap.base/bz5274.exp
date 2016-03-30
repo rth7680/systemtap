@@ -1,4 +1,6 @@
 set test "./bz5274"
+set tpath "$srcdir/$subdir/$test"
+set arch [exec uname -i]
 
 if {! [installtest_p]} {
     untested "$test -p5"
@@ -10,17 +12,10 @@ if {![uretprobes_p]} {
     return
 }
 
-set arch [exec uname -i]
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-set tpath "$curdir/$subdir/$test"
-
-cd $artifactsdir
-
 if {$arch == "ppc64"} {
-    catch {exec gcc -o $test -g -m64 $curdir/$subdir/$test.c} err
+    catch {exec gcc -o $test -g -m64 $srcdir/$subdir/$test.c} err
 } else {
-    catch {exec gcc -o $test -g $curdir/$subdir/$test.c} err
+    catch {exec gcc -o $test -g $srcdir/$subdir/$test.c} err
 }
 
 if {$err == "" && [file exists $test]} then {
@@ -29,28 +24,34 @@ if {$err == "" && [file exists $test]} then {
     fail "$test compile"
 }
 
-if {[catch {exec stap -w $tpath.stp -c "$curdir/$subdir/$test.sh"} res]} {
+if {[catch {exec stap -w $tpath.stp -c "$srcdir/$subdir/$test.sh"} res]} {
     untested "$test longjmp to a uretprobed function"
     verbose -log "$res"
+    catch {exec rm -f $test.out}
 } else {
-    if {[catch {exec cmp $test.out $curdir/$subdir/$test.exp_out} res]} {
+    if {[catch {exec cmp $test.out $srcdir/$subdir/$test.exp_out} res]} {
         fail "$test longjmp to a uretprobed function"
 	verbose -log "$res"
+        catch {exec rm -f $test.out}
     } else {
         pass "$test longjmp to a uretprobed function"
+        catch {exec rm -f $test.out}
     }
 }
 
-if {[catch {exec stap $tpath.a.stp -c $curdir/$subdir/$test.sh} res]} {
+if {[catch {exec stap $tpath.a.stp -c $srcdir/$subdir/$test.sh} res]} {
     untested "$test longjmp to a non-uretprobed function"
     verbose -log "$res"
+    catch {exec rm -f $test.out $test}
 } else {
-    if {[catch {exec cmp $test.out $curdir/$subdir/$test.exp_out} res]} {
+    if {[catch {exec cmp $test.out $srcdir/$subdir/$test.exp_out} res]} {
         fail "$test longjmp to a non-uretprobed function"
 	verbose -log "$res"
+        catch {exec rm -f $test.out $test}
     } else {
         pass "$test longjmp to a non-uretprobed function"
+        catch {exec rm -f $test.out $test}
     }
 }
 
-cd $curdir
+

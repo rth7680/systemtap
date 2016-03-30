@@ -1,13 +1,11 @@
 # Test the private keyword feature
+
 set test "private"
 
-# Use testcase specific directory for testcase artifacts
-set artifactsdir [setup_artifacts_dir]
-set curdir [pwd]
-cd $artifactsdir
-
 # Setup
-file copy "$curdir/$subdir/${test}.stp" "$artifactsdir"
+file mkdir "$test"
+file copy "$srcdir/$subdir/${test}.stp" "$test"
+cd "$test"
 
 foreach runtime [get_runtime_list] {
     if {$runtime == ""} {set runtime kernel}
@@ -186,5 +184,6 @@ foreach runtime [get_runtime_list] {
     }
 }
 
-# Switch back from the testcase specific working directory
-cd $curdir
+# Cleanup
+cd ..
+file delete -force "$test"
