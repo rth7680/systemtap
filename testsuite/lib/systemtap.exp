@@ -597,7 +597,29 @@ if { ! [info exists env(STAP_PARALLEL)] } {
     environment_sanity_test
 }
 
-proc systemtap_init {args} {}
+proc systemtap_init {args} {
+    if {[info exists env(STAP_PARALLEL)] } {
+        global srcdir
+        regsub {\.exp$} $args {} args
+        regsub ${srcdir}/ $args {} args
+        set artifactdir "$srcdir/artifacts/$args"
+        if {[catch {exec mkdir -p $artifactdir} err_msg]} {
+            verbose -log "Failed to create artifacts directory: $err_msg"
+            exit 1
+        }
+        # Switch to the artifacts directory before the testcase starts
+        cd $artifactdir
+    }
+}
+
+proc systemtap_finish {args} {
+    if {[info exists env(STAP_PARALLEL)] } {
+        # Return from the artifacts directory after the testcase finishes
+        global srcdir
+        cd $srcdir
+    }
+}
+
 proc systemtap_version {} {}
 
 proc cleanup {} {
@@ -849,20 +871,4 @@ proc strverscmp { vers1 vers2 } {
       set vers1 $nextvers1
       set vers2 $nextvers2
    }
-}
-
-proc setup_artifacts_dir {} {
-    global srcdir
-    set scriptdir [info script]
-    regsub {\.exp$} $scriptdir {} scriptdir
-    regsub {^\.\/} $scriptdir {} scriptdir
-    # [fullpath $srcdir] is independent on make invocation path
-    set basepath [fullpath $srcdir]
-    regsub {\/\.$} $basepath {} basepath
-    set artifactdir "$basepath/artifacts/$scriptdir"
-    if {[catch {exec mkdir -p $artifactdir} err_msg]} {
-        verbose -log "Failed to create artifacts directory: $err_msg"
-        exit 1
-    }
-    return $artifactdir
 }
