@@ -1,7 +1,7 @@
 set test "server request size"
 
 # Create a new server log and make sure it's world writable.
-set logfile "$artifactdir/server.log"
+set logfile "[pwd]/server.log"
 catch {exec rm -f $logfile}
 catch {exec touch $logfile}
 catch {exec chmod 666 $logfile}
