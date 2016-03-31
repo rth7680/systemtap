@@ -598,8 +598,8 @@ if { ! [info exists env(STAP_PARALLEL)] } {
 }
 
 proc systemtap_init {args} {
+    global env srcdir artifactdir
     if {[info exists env(STAP_PARALLEL)] } {
-        global srcdir artifactdir
         regsub {\.exp$} $args {} args
         regsub ${srcdir}/ $args {} args
         set artifactdir "$srcdir/artifacts/$args"
@@ -613,9 +613,9 @@ proc systemtap_init {args} {
 }
 
 proc systemtap_finish {args} {
+    global env srcdir
     if {[info exists env(STAP_PARALLEL)] } {
         # Return from the artifacts directory after the testcase finishes
-        global srcdir
         cd $srcdir
     }
 }
