@@ -599,7 +599,7 @@ if { ! [info exists env(STAP_PARALLEL)] } {
 
 proc systemtap_init {args} {
     if {[info exists env(STAP_PARALLEL)] } {
-        global srcdir
+        global srcdir artifactdir
         regsub {\.exp$} $args {} args
         regsub ${srcdir}/ $args {} args
         set artifactdir "$srcdir/artifacts/$args"
