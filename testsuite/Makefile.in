@@ -201,10 +201,7 @@ TESTAPPS = @enable_testapps@
 TOOL_OPTS = 
 # Tests that need to run serially. This namely applies to systemtap.server tests.
 # They start a new systemtap server and only expect one local server to run.
-serial_tests = systemtap.server/client.exp systemtap.server/client_args.exp \
-	systemtap.server/server.exp systemtap.server/server_args.exp \
-	systemtap.server/server_concurrency.exp systemtap.server/server_locale.exp
-
+serial_tests = $(shell cd $(srcdir) && find systemtap.server -name '*.exp' -print)
 
 # There are a few tests known to be slow. We run them right from the beginning
 # to try to lessen the overall time taken by the test suite -- if one of these
@@ -216,15 +213,14 @@ slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
 	systemtap.base/listing_mode_sanity.exp systemtap.pass1-4/parse-semok.exp \
 	systemtap.pass1-4/semok.exp systemtap.unprivileged/unprivileged_probes.exp \
 	systemtap.pass1-4/buildok-interactive.exp \
-	systemtap.onthefly/uprobes_onthefly.exp systemtap.server/server_concurrency.exp \
+	systemtap.onthefly/uprobes_onthefly.exp \
 	systemtap.onthefly/kprobes_onthefly.exp systemtap.base/sdt.exp \
 	systemtap.onthefly/hrtimer_onthefly.exp \
 	systemtap.onthefly/tracepoint_onthefly.exp systemtap.exelib/exelib.exp \
 	systemtap.pass1-4/semko.exp systemtap.pass1-4/parseko.exp \
 	systemtap.base/rlimit.exp systemtap.base/tracepoints.exp \
 	systemtap.base/systemtap-service.exp systemtap.maps/map_hash.exp \
-	systemtap.base/stmt_rel.exp systemtap.base/library.exp \
-	systemtap.server/client_args.exp
+	systemtap.base/stmt_rel.exp systemtap.base/library.exp
 
 all_tests := $(shell cd $(srcdir) && find systemtap.* -name '*.exp' -print)
 regular_tests := $(filter-out $(serial_tests) $(slow_tests) ,$(all_tests))
