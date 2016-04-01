@@ -49,10 +49,7 @@ installcheck-parallel: site.exp
 	exit $$result
 # Tests that need to run serially. This namely applies to systemtap.server tests.
 # They start a new systemtap server and only expect one local server to run.
-serial_tests = systemtap.server/client.exp systemtap.server/client_args.exp \
-	systemtap.server/server.exp systemtap.server/server_args.exp \
-	systemtap.server/server_concurrency.exp systemtap.server/server_locale.exp \
-	systemtap.server/server_req_size.exp
+serial_tests = $(shell cd $(srcdir) && find systemtap.server -name '*.exp' -print)
 
 # There are a few tests known to be slow. We run them right from the beginning
 # to try to lessen the overall time taken by the test suite -- if one of these
