@@ -47,14 +47,27 @@ installcheck-parallel: site.exp
 	$(SHELL) $(srcdir)/dg-extract-results.sh -L \
 	`find artifacts -name systemtap.log -print` > systemtap.log; \
 	exit $$result
+
+# TESTS exists for the user to pass on the command line to easily
+# say "Only run these tests."  With check or installcheck it's not necessary, but
+# with installcheck-parallel there's no other way to (easily) specify a subset
+# of tests. To specify all tests in a subdirectory, use TESTS=systemtap.subdir/*.exp.
+# E.g., make check TESTS="gdb.server/*.exp gdb.threads/*.exp".
+expanded_tests := $(patsubst $(srcdir)/%,%,$(wildcard $(addprefix $(srcdir)/,$(TESTS))))
+
+# Following are all tests we want to run within the installcheck-parallel target.
+# Those are either specified via the TESTS env var, or all the available tests.
+all_tests := $(or $(expanded_tests),$(shell cd $(srcdir) && find systemtap.* -name '*.exp' -print))
+
 # Tests that need to run serially. This namely applies to systemtap.server tests.
 # They start a new systemtap server and only expect one local server to run.
-serial_tests = $(shell cd $(srcdir) && find systemtap.server -name '*.exp' -print)
+all_serial_tests := $(shell cd $(srcdir) && find systemtap.server -name '*.exp' -print)
+serial_tests := $(filter $(all_tests),$(all_serial_tests))
 
 # There are a few tests known to be slow. We run them right from the beginning
 # to try to lessen the overall time taken by the test suite -- if one of these
 # tests happens to be run late, it will cause the overall time to increase.
-slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
+all_slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
 	systemtap.base/listing_mode.exp systemtap.syscall/nd_syscall.exp \
 	systemtap.unprivileged/unprivileged_myproc.exp systemtap.syscall/syscall.exp \
 	systemtap.base/sdt_misc.exp systemtap.pass1-4/parseok.exp \
@@ -69,8 +82,8 @@ slow_tests = systemtap.examples/check.exp systemtap.pass1-4/buildok.exp \
 	systemtap.base/rlimit.exp systemtap.base/tracepoints.exp \
 	systemtap.base/systemtap-service.exp systemtap.maps/map_hash.exp \
 	systemtap.base/stmt_rel.exp systemtap.base/library.exp
+slow_tests = $(filter $(all_tests),$(all_slow_tests))
 
-all_tests := $(shell cd $(srcdir) && find systemtap.* -name '*.exp' -print)
 regular_tests := $(filter-out $(serial_tests) $(slow_tests) ,$(all_tests))
 
 REGULAR_TEST_TARGETS := $(addprefix installcheck/,$(slow_tests) $(regular_tests))
@@ -79,7 +92,7 @@ do-installcheck-parallel: installcheck-serial-tests $(REGULAR_TEST_TARGETS)
 	@:
 
 installcheck-serial-tests: site.exp
-	-MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
+	test -z $(serial_tests) || MAKEFLAGS= $(MAKE) $(AM_MAKEFLAGS) check-DEJAGNU RUNTESTFLAGS="--outdir=artifacts/__serialtests $(serial_tests) $(RUNTESTFLAGS) --tool_opts \'install $(TOOL_OPTS)\'" STAP_PARALLEL=yes
 
 installcheck/%.exp: site.exp
 	mkdir -p artifacts/$*
